@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Itinerary Finder</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body { 
+            font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace; 
+            margin: 20px; padding: 0; background-color: #2b2b2a; color: #111;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .search-form { 
+            display: flex; flex-direction: column; gap: 15px; margin: 0 auto 30px auto; 
+            max-width: 800px; background-color: #f4eae1; padding: 25px; border: 2px solid #c2b6a7;
+            border-radius: 4px; box-shadow: inset 0 0 40px rgba(0,0,0,0.05), 5px 5px 15px rgba(0,0,0,0.5);
+            box-sizing: border-box; position: relative; 
+        }
+
+        .header-strip { 
+            border-bottom: 2px dashed #a69c8e; padding-bottom: 12px; margin-bottom: 10px; 
+            display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; 
+            color: #555; letter-spacing: 1px; 
+        }
+        
+        .grid-search { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        
+        label { font-size: 11px; font-weight: 700; color: #222; text-transform: uppercase; }
+        
+        select, input[type="text"] { 
+            padding: 8px 12px; font-family: 'JetBrains Mono', monospace; font-size: 14px; 
+            font-weight: 700; border: 1px solid #a69c8e; border-radius: 0px; 
+            background-color: #fcf8f2; color: #002244; height: 38px; width: 100%; 
+            box-sizing: border-box; text-transform: uppercase; 
+        }
+
+        input[type="text"]:focus, select:focus { background-color: #fff; outline: 2px solid #bf360c; }
+
+        .filter-section { background-color: #e2edd8; border: 1px solid #c4dbb0; padding: 15px; margin-top: 5px; }
+        .filter-title { font-size: 11px; font-weight: 700; color: #2e4d14; margin-bottom: 10px; }
+        .grid-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        
+        .dual-slider-row { display: flex; gap: 10px; align-items: center; }
+        .dual-slider-row input[type="time"] { 
+            padding: 4px 8px; font-family: 'JetBrains Mono', monospace; font-size: 13px; 
+            font-weight: 700; border: 1px solid #7a9362; background-color: #f4fcf0; 
+            height: 32px; flex: 1; 
+        }
+        
+        .btn-row { display: flex; gap: 12px; margin-top: 5px; align-items: flex-end; }
+        button { 
+            padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; 
+            border: 1px solid #777; border-radius: 0px; cursor: pointer; font-weight: 700; 
+            text-transform: uppercase; box-shadow: 2px 2px 0px rgba(0,0,0,0.15); 
+        }
+        
+        #searchBtn { background-color: #bf360c; color: white; border: 1px solid #870000; flex: 2; }
+        #searchBtn:disabled { background-color: #ccc; border-color: #999; color: #666; cursor: not-allowed; box-shadow: none; }
+        #clearBtn { background-color: #dfd5c6; color: #333; border: 1px solid #9e9282; flex: 1; }
+        
+        .sort-group { flex: 1.8; display: flex; flex-direction: column; gap: 5px; }
+        .results-wrapper { max-width: 800px; margin: 0 auto; }
+        
+        .connection-card { background: #fbf5ee; border: 2px solid #bdae9b; border-radius: 4px; margin-bottom: 20px; box-shadow: 4px 4px 12px rgba(0,0,0,0.35); overflow: hidden; }
+        .card-header { background-color: #ded0bc; padding: 10px 15px; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; border-bottom: 2px dashed #bdae9b; }
+        .card-header.non-stop { background-color: #d1dfc5; border-bottom: 2px dashed #9cb08f; color: #1b330c; }
+        .card-header.two-stop { background-color: #ddd0c5; border-bottom: 2px dashed #b8a898; color: #3a1f0c; }
+
+        .hub-badge { background-color: #4a3e3d; color: #fff; padding: 2px 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .hub-badge.non-stop-badge { background-color: #2e4d14; }
+        .hub-badge.two-stop-badge { background-color: #6b3a1f; }
+
+        .layover-bar { background-color: #f7ebd9; color: #a04000; padding: 8px 15px; font-size: 11px; font-weight: 700; text-align: center; border-top: 2px dotted #c5b6a1; border-bottom: 2px dotted #c5b6a1; }
+        
+        .flight-leg { padding: 10px 15px; display: grid; grid-template-columns: 0.7fr 1.4fr 1.6fr 1.6fr 1.2fr 0.8fr; align-items: center; font-size: 13px; border-bottom: 1px dashed #e1d5c5; }
+        .leg-title { font-weight: 700; color: #7f684f; font-size: 11px; text-transform: uppercase; }
+        .airline-info { font-weight: 700; color: #002244; font-size: 12px; }
+        .route-times { display: flex; flex-direction: column; gap: 2px; }
+        .time-row { font-weight: 700; color: #bf360c; font-size: 13px; letter-spacing: 0.3px; }
+        .code-row { font-size: 11px; color: #555; font-weight: 400; }
+        .day-badge { background-color: #cde0bb; padding: 3px 6px; font-size: 10px; color: #1a3a00; font-weight: 700; border: 1px solid #abc294; display: inline-block; text-align: center; }
+        
+        .status-msg { color: #f4eae1; font-style: italic; text-align: center; margin-top: 20px; font-size: 13px; }
+        .error { color: #ff5252; text-align: center; font-weight: 700; }
+        .results-count { font-size: 13px; font-weight: 700; margin-bottom: 15px; color: #f4eae1; }
+    </style>
+</head>
+<body>
+
+    <form id="connectionForm" class="search-form">
+        <div class="header-strip">
+            <span>ITINERARY FINDER</span>
+        </div>
+        
+        <div class="grid-search">
+            <div class="input-group">
+                <label for="originInput">Origin</label>
+                <input type="text" id="originInput" list="originOptions" placeholder="Loading..." disabled required>
+                <datalist id="originOptions"></datalist>
+            </div>
+            <div class="input-group">
+                <label for="destinationInput">Destination</label>
+                <input type="text" id="destinationInput" list="destinationOptions" placeholder="Loading..." disabled required>
+                <datalist id="destinationOptions"></datalist>
+            </div>
+            <div class="input-group">
+                <label for="yearInput">Year *</label>
+                <select id="yearInput" disabled required>
+                    <option value="" disabled selected hidden>Loading...</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="airlineInput">Airline</label>
+                <input type="text" id="airlineInput" list="airlineOptions" placeholder="Loading..." disabled>
+                <datalist id="airlineOptions"></datalist>
+            </div>
+            <div class="input-group" style="grid-column: span 2;">
+                <label for="searchDay">Day of Week</label>
+                <select id="searchDay">
+                    <option value="ANY">Any Day</option>
+                    <option value="Mo">Monday</option>
+                    <option value="Tu">Tuesday</option>
+                    <option value="We">Wednesday</option>
+                    <option value="Th">Thursday</option>
+                    <option value="Fr">Friday</option>
+                    <option value="Sa">Saturday</option>
+                    <option value="Su">Sunday</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="filter-title">Filters</div>
+            <div class="grid-filters">
+                <div class="input-group">
+                    <label>Departure Window</label>
+                    <div class="dual-slider-row">
+                        <input type="time" id="depMin" value="00:00">
+                        <span>TO</span>
+                        <input type="time" id="depMax" value="23:59">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Arrival Window</label>
+                    <div class="dual-slider-row">
+                        <input type="time" id="arrMin" value="00:00">
+                        <span>TO</span>
+                        <input type="time" id="arrMax" value="23:59">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button type="submit" id="searchBtn" disabled>Loading...</button>
+            <div class="sort-group">
+                <label for="sortResultsBy">Sort By</label>
+                <select id="sortResultsBy" disabled>
+                    <option value="totalTime">Shortest Total Time</option>
+                    <option value="departEarliest">Earliest Departure</option>
+                    <option value="departLatest">Latest Departure</option>
+                    <option value="arriveEarliest">Earliest Arrival</option>
+                    <option value="arriveLatest">Latest Arrival</option>
+                </select>
+            </div>
+            <button type="button" id="clearBtn">Clear</button>
+        </div>
+    </form>
+
+    <div id="connectionResults" class="results-wrapper"></div>
+
+<script>
+    const SUPABASE_URL     = "https://rquyikhkoygtqkqedxoq.supabase.co/rest/v1";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdXlpa2hrb3lndHFrcWVkeG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1OTAsImV4cCI6MjA5NjQzOTU5MH0.8YuEErIDMjTcW0VJbkdvJQ4ayRTvzLTErAmQpMpl-Ok";
+    const HEADERS = {
+        "apikey":        SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    };
+
+    const MIN_LAYOVER = 35;
+    const MAX_LAYOVER = 240;
+    const MAX_RESULTS = 50;
+
+    const form             = document.getElementById('connectionForm');
+    const searchBtn        = document.getElementById('searchBtn');
+    const clearBtn         = document.getElementById('clearBtn');
+    const sortSelect       = document.getElementById('sortResultsBy');
+    const resultsContainer = document.getElementById('connectionResults');
+    const yearInput        = document.getElementById('yearInput');
+    const originInput      = document.getElementById('originInput');
+    const destinationInput = document.getElementById('destinationInput');
+    const airlineInput     = document.getElementById('airlineInput');
+    const searchDay        = document.getElementById('searchDay');
+    const depMinInput      = document.getElementById('depMin');
+    const depMaxInput      = document.getElementById('depMax');
+    const arrMinInput      = document.getElementById('arrMin');
+    const arrMaxInput      = document.getElementById('arrMax');
+
+    let masterConnectionsPool = [];
+    let activeAbortController = null;
+
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return null;
+        const parts = timeStr.split(':');
+        if (parts.length < 2) return null;
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    }
+
+    function htmlTimeToMinutes(str) {
+        if (!str) return null;
+        const parts = str.split(':');
+        if (parts.length < 2) return null;
+        return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+
+    function formatTime(timeStr) {
+        if (!timeStr) return '';
+        const [hStr, mStr] = timeStr.split(':');
+        let h = parseInt(hStr, 10);
+        const m = mStr || '00';
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        if (h === 0) h = 12;
+        else if (h > 12) h -= 12;
+        return `${h}:${m} ${ampm}`;
+    }
+
+    function formatMinutes(totalMins) {
+        if (totalMins === null || totalMins === undefined) return '?';
+        if (totalMins < 0) totalMins += 1440;
+        const h = Math.floor(totalMins / 60);
+        const m = totalMins % 60;
+        return h > 0 ? `${h}H ${m}M` : `${m}M`;
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function areAffiliatedAirlines(a1, a2) {
+        if (!a1 || !a2) return false;
+        const n1 = a1.toLowerCase().trim();
+        const n2 = a2.toLowerCase().trim();
+        return n1.includes(n2) || n2.includes(n1);
+    }
+
+    function flightOperatesOnDay(daysStr, targetDay) {
+        if (targetDay === 'ANY') return true;
+        if (!daysStr) return true;
+        return daysStr.includes(targetDay);
+    }
+
+    function shareACommonDay(days1, days2) {
+        const allDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+        return allDays.some(d =>
+            flightOperatesOnDay(days1, d) && flightOperatesOnDay(days2, d)
+        );
+    }
+
+    function shareACommonDayThree(days1, days2, days3) {
+        const allDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+        return allDays.some(d =>
+            flightOperatesOnDay(days1, d) &&
+            flightOperatesOnDay(days2, d) &&
+            flightOperatesOnDay(days3, d)
+        );
+    }
+
+    function calcLayover(arrMins, depMins) {
+        if (arrMins === null || depMins === null) return null;
+        let layover = depMins - arrMins;
+        if (layover < 0) layover += 1440;
+        return layover;
+    }
+
+    function calcTotalTime(depMins, arrMins) {
+        if (depMins === null || arrMins === null) return 0;
+        let total = arrMins - depMins;
+        if (total < 0) total += 1440;
+        return total;
+    }
+
+    function isContinuationLeg(leg1, leg2) {
+        if (!leg1 || !leg2) return false;
+        const sameAirline = (leg1.airline_name || '').trim().toLowerCase() ===
+                            (leg2.airline_name || '').trim().toLowerCase();
+        const sameFlight  = (leg1.flight || '').trim().toLowerCase() ===
+                            (leg2.flight || '').trim().toLowerCase();
+        return sameAirline && sameFlight && sameFlight !== '';
+    }
+
+    async function fetchAll(url, signal, pageLimit = 1000) {
+        let results = [];
+        let offset  = 0;
+        while (true) {
+            const sep      = url.includes('?') ? '&' : '?';
+            const pagedUrl = `${url}${sep}limit=${pageLimit}&offset=${offset}`;
+            const res      = await fetch(pagedUrl, { headers: HEADERS, signal });
+            if (!res.ok) throw new Error(`API error ${res.status}`);
+            const batch = await res.json();
+            results = results.concat(batch);
+            if (batch.length < pageLimit) break;
+            offset += pageLimit;
+        }
+        return results;
+    }
+
+    async function initializeDropdowns() {
+        try {
+            const [seasonsRes, airportsRes, airlinesRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/airports?select=display_name&order=display_name.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`, { headers: HEADERS })
+            ]);
+            if (!seasonsRes.ok || !airportsRes.ok || !airlinesRes.ok) throw new Error();
+
+            const seasons  = await seasonsRes.json();
+            const airports = await airportsRes.json();
+            const airlines = await airlinesRes.json();
+
+            yearInput.innerHTML = `<option value="" disabled selected hidden>Select a Year</option>`;
+            seasons.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value       = s.season_code;
+                opt.textContent = s.season_label;
+                yearInput.appendChild(opt);
+            });
+
+            ['originOptions', 'destinationOptions'].forEach(listId => {
+                const dl = document.getElementById(listId);
+                airports.forEach(a => {
+                    const opt   = document.createElement('option');
+                    opt.value   = a.display_name;
+                    dl.appendChild(opt);
+                });
+            });
+
+            const airlineDl = document.getElementById('airlineOptions');
+            airlines.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.airline_name;
+                airlineDl.appendChild(opt);
+            });
+
+            [originInput, destinationInput, airlineInput, yearInput].forEach(el => el.disabled = false);
+            originInput.placeholder      = 'City name or airport code...';
+            destinationInput.placeholder = 'City name or airport code...';
+            airlineInput.placeholder     = 'Any airline...';
+            searchBtn.textContent        = 'Search';
+            searchBtn.disabled           = false;
+
+        } catch (err) {
+            console.error(err);
+            resultsContainer.innerHTML = '<p class="error">Error loading form data. Please refresh.</p>';
+        }
+    }
+
+    initializeDropdowns();
+
+    function renderCards(pool) {
+        const depAfter  = htmlTimeToMinutes(depMinInput.value);
+        const depBefore = htmlTimeToMinutes(depMaxInput.value);
+        const arrAfter  = htmlTimeToMinutes(arrMinInput.value);
+        const arrBefore = htmlTimeToMinutes(arrMaxInput.value);
+
+        const filtered = pool.filter(conn => {
+            const dep = timeToMinutes(conn.leg1.depart);
+            const finalLeg = conn.leg3 || conn.leg2 || conn.leg1;
+            const arr = timeToMinutes(finalLeg.arrive);
+            if (depAfter  !== null && dep !== null && dep < depAfter)  return false;
+            if (depBefore !== null && dep !== null && dep > depBefore) return false;
+            if (arrAfter  !== null && arr !== null && arr < arrAfter)  return false;
+            if (arrBefore !== null && arr !== null && arr > arrBefore) return false;
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            resultsContainer.innerHTML = '<p class="status-msg">No itineraries match the selected criteria.</p>';
+            return;
+        }
+
+        const isTwoStopOnly = filtered.every(c => c.isTwoStop);
+        const wasCapped = !isTwoStopOnly && filtered.length > MAX_RESULTS;
+        const displayed = wasCapped ? filtered.slice(0, MAX_RESULTS) : filtered;
+
+        let noticeHtml = '';
+        if (isTwoStopOnly) {
+            noticeHtml = `<span style="font-weight:400;"> — 2-stop connections (no non-stop or 1-stop service found)</span>`;
+        } else if (wasCapped) {
+            noticeHtml = `
+                <div style="background:#f7ebd9; border:1px solid #c5b6a1; padding:10px 14px; margin-top:8px; font-size:11px; font-weight:400; color:#5a3e1b; line-height:1.6;">
+                    Showing the ${MAX_RESULTS} fastest options from ${filtered.length} total itineraries found.
+                    Use the <strong>Airline</strong>, <strong>Day of Week</strong>, and <strong>Time</strong> filters above to narrow results further.
+                </div>`;
+        }
+
+        let html = `<div class="results-count">Results: ${displayed.length}${isTwoStopOnly ? noticeHtml : ''}</div>${!isTwoStopOnly && wasCapped ? noticeHtml : ''}`;
+
+        displayed.forEach((conn, idx) => {
+            const headerClass = conn.isNonStop ? 'non-stop' : (conn.isTwoStop ? 'two-stop' : '');
+            const badgeClass  = conn.isNonStop ? 'non-stop-badge' : (conn.isTwoStop ? 'two-stop-badge' : '');
+            const badgeText   = conn.isNonStop
+                ? 'DIRECT'
+                : conn.isTwoStop
+                    ? `VIA ${esc(conn.leg1.dest_code)} &amp; ${esc(conn.leg2.dest_code)}`
+                    : `VIA ${esc(conn.leg1.dest_code)}`;
+
+            const legRow = (leg, label) => `
+                <div class="flight-leg">
+                    <div><span class="leg-title">${label}</span></div>
+                    <div class="airline-info">${esc(leg.airline_name)}<br>${esc(leg.flight)}</div>
+                    <div class="route-times">
+                        <div class="time-row">${esc(formatTime(leg.depart))}</div>
+                        <div class="code-row">Dep: ${esc(leg.origin_code)}</div>
+                    </div>
+                    <div class="route-times">
+                        <div class="time-row">${esc(formatTime(leg.arrive))}</div>
+                        <div class="code-row">Arr: ${esc(leg.dest_code)}</div>
+                    </div>
+                    <div><span class="day-badge">${esc(leg.frequency || 'DAILY')}</span></div>
+                    <div style="font-size:11px; color:#7f684f; font-weight:700; text-align:right;">${esc(leg.equipment) || '—'}</div>
+                </div>`;
+
+            html += `
+                <div class="connection-card">
+                    <div class="card-header ${headerClass}">
+                        <span>Option #${idx + 1} &nbsp;|&nbsp; Total time: ${formatMinutes(conn.totalTravelMinutes)}</span>
+                        <span class="hub-badge ${badgeClass}">${badgeText}</span>
+                    </div>
+                    ${legRow(conn.leg1, 'Flight 1')}`;
+
+            if (!conn.isNonStop) {
+                html += `<div class="layover-bar">CONNECTION AT ${esc(conn.leg2.origin_name || conn.leg2.origin_code)}: ${formatMinutes(conn.layover1)} layover</div>`;
+                html += legRow(conn.leg2, 'Flight 2');
+                if (conn.isTwoStop) {
+                    html += `<div class="layover-bar">CONNECTION AT ${esc(conn.leg3.origin_name || conn.leg3.origin_code)}: ${formatMinutes(conn.layover2)} layover</div>`;
+                    html += legRow(conn.leg3, 'Flight 3');
+                }
+            }
+            html += `</div>`;
+        });
+
+        resultsContainer.innerHTML = html;
+    }
+
+    function sortPool(criterion) {
+        masterConnectionsPool.sort((a, b) => {
+            const depA = timeToMinutes(a.leg1.depart) ?? Infinity;
+            const depB = timeToMinutes(b.leg1.depart) ?? Infinity;
+            const finalA = a.leg3 || a.leg2 || a.leg1;
+            const finalB = b.leg3 || b.leg2 || b.leg1;
+            const arrA = timeToMinutes(finalA.arrive) ?? Infinity;
+            const arrB = timeToMinutes(finalB.arrive) ?? Infinity;
+            switch (criterion) {
+                case 'totalTime':      return a.totalTravelMinutes - b.totalTravelMinutes;
+                case 'departEarliest': return depA - depB;
+                case 'departLatest':   return depB - depA;
+                case 'arriveEarliest': return arrA - arrB;
+                case 'arriveLatest':   return arrB - arrA;
+                default: return 0;
+            }
+        });
+    }
+
+    [depMinInput, depMaxInput, arrMinInput, arrMaxInput].forEach(el => {
+        el.addEventListener('input',  () => renderCards(masterConnectionsPool));
+        el.addEventListener('change', () => renderCards(masterConnectionsPool));
+    });
+
+    sortSelect.addEventListener('change', function() {
+        sortPool(this.value);
+        renderCards(masterConnectionsPool);
+    });
+
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const season     = yearInput.value;
+        const originVal  = originInput.value.trim();
+        const destVal    = destinationInput.value.trim();
+        const airlineVal = airlineInput.value.trim().toLowerCase();
+        const dayVal     = searchDay.value;
+
+        if (!season) { alert('Please select a Year.'); return; }
+        if (!originVal) { alert('Please enter an Origin.'); return; }
+        if (!destVal)   { alert('Please enter a Destination.'); return; }
+        if (originVal.toUpperCase() === destVal.toUpperCase()) {
+            alert('Origin and destination cannot be the same.');
+            return;
+        }
+
+        if (activeAbortController) activeAbortController.abort();
+        activeAbortController = new AbortController();
+        const signal = activeAbortController.signal;
+
+        masterConnectionsPool = [];
+        searchBtn.disabled    = true;
+        searchBtn.textContent = 'Searching...';
+        sortSelect.disabled   = true;
+        resultsContainer.innerHTML = '<p class="status-msg">Searching...</p>';
+
+        try {
+            const base = `${SUPABASE_URL}/flights`;
+            const seasonFilter = `season=eq.${encodeURIComponent(season)}`;
+            const dayFilter = dayVal !== 'ANY'
+                ? `&days=ilike.${encodeURIComponent('%' + dayVal + '%')}`
+                : '';
+
+            const [resDirect, resLeg1, resLeg2] = await Promise.all([
+                fetchAll(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+originVal+'%')}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}${dayFilter}`, signal),
+                fetchAll(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+originVal+'%')}${dayFilter}`, signal),
+                fetchAll(`${base}?${seasonFilter}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}${dayFilter}`, signal)
+            ]);
+
+            resDirect.forEach(f => {
+                if (airlineVal && !f.airline_name?.toLowerCase().includes(airlineVal)) return;
+                const dep = timeToMinutes(f.depart);
+                const arr = timeToMinutes(f.arrive);
+                masterConnectionsPool.push({
+                    isNonStop: true, isTwoStop: false,
+                    totalTravelMinutes: calcTotalTime(dep, arr),
+                    layover1: 0, layover2: 0,
+                    leg1: f, leg2: null, leg3: null
+                });
+            });
+
+            const leg2ByOriginCode = {};
+            resLeg2.forEach(f => {
+                const code = f.origin_code;
+                if (!code) return;
+                if (!leg2ByOriginCode[code]) leg2ByOriginCode[code] = [];
+                leg2ByOriginCode[code].push(f);
+            });
+
+            resLeg1.forEach(l1 => {
+                if (l1.dest_code === resLeg2[0]?.dest_code) return;
+                const l1ArrMins = timeToMinutes(l1.arrive);
+                const l1DepMins = timeToMinutes(l1.depart);
+                if (l1ArrMins === null || l1DepMins === null) return;
+                const candidates = leg2ByOriginCode[l1.dest_code] || [];
+                candidates.forEach(l2 => {
+                    if (!areAffiliatedAirlines(l1.airline_name, l2.airline_name)) return;
+                    if (airlineVal) {
+                        const a1 = l1.airline_name?.toLowerCase() || '';
+                        const a2 = l2.airline_name?.toLowerCase() || '';
+                        if (!a1.includes(airlineVal) && !a2.includes(airlineVal)) return;
+                    }
+                    if (dayVal === 'ANY' && !shareACommonDay(l1.days, l2.days)) return;
+                    const l2DepMins = timeToMinutes(l2.depart);
+                    const l2ArrMins = timeToMinutes(l2.arrive);
+                    if (l2DepMins === null || l2ArrMins === null) return;
+                    const layover = calcLayover(l1ArrMins, l2DepMins);
+                    const continuation = isContinuationLeg(l1, l2);
+                    if (layover === null || layover > MAX_LAYOVER) return;
+                    if (!continuation && layover < MIN_LAYOVER) return;
+                    masterConnectionsPool.push({
+                        isNonStop: false, isTwoStop: false,
+                        totalTravelMinutes: calcTotalTime(l1DepMins, l2ArrMins),
+                        layover1: layover, layover2: 0,
+                        leg1: l1, leg2: l2, leg3: null
+                    });
+                });
+            });
+
+            if (masterConnectionsPool.length === 0) {
+                resultsContainer.innerHTML = '<p class="status-msg">No direct or 1-stop service found. Searching 2-stop connections...</p>';
+                const destCodes = new Set(resLeg2.map(f => f.origin_code).filter(Boolean));
+                const hubACandidates = [...new Set(resLeg1.map(f => f.dest_code).filter(c => c && !destCodes.has(c)))].slice(0, 20);
+                const middleResults = await Promise.all(
+                    hubACandidates.map(hubA => fetchAll(`${base}?${seasonFilter}&origin_code=eq.${encodeURIComponent(hubA)}${dayFilter}`, signal).catch(() => []))
+                );
+                const middleByHubA = {};
+                hubACandidates.forEach((hubA, i) => { middleByHubA[hubA] = middleResults[i]; });
+                const leg2ByHubB = {};
+                resLeg2.forEach(f => {
+                    const code = f.origin_code;
+                    if (!code) return;
+                    if (!leg2ByHubB[code]) leg2ByHubB[code] = [];
+                    leg2ByHubB[code].push(f);
+                });
+                const originCode = resLeg1.length > 0 ? resLeg1[0].origin_code : '';
+                resLeg1.forEach(l1 => {
+                    const l1DepMins = timeToMinutes(l1.depart);
+                    const l1ArrMins = timeToMinutes(l1.arrive);
+                    if (l1DepMins === null || l1ArrMins === null) return;
+                    const hubA = l1.dest_code;
+                    if (!hubA || !middleByHubA[hubA]) return;
+                    middleByHubA[hubA].forEach(l2 => {
+                        if (!areAffiliatedAirlines(l1.airline_name, l2.airline_name)) return;
+                        const hubB = l2.dest_code;
+                        if (!hubB || hubB === originCode || hubB === hubA || !leg2ByHubB[hubB]) return;
+                        const l2DepMins = timeToMinutes(l2.depart);
+                        const l2ArrMins = timeToMinutes(l2.arrive);
+                        if (l2DepMins === null || l2ArrMins === null) return;
+                        const layover1 = calcLayover(l1ArrMins, l2DepMins);
+                        const continuation1 = isContinuationLeg(l1, l2);
+                        if (layover1 === null || layover1 > MAX_LAYOVER) return;
+                        if (!continuation1 && layover1 < MIN_LAYOVER) return;
+                        leg2ByHubB[hubB].forEach(l3 => {
+                            if (!areAffiliatedAirlines(l2.airline_name, l3.airline_name)) return;
+                            if (airlineVal) {
+                                const a1 = l1.airline_name?.toLowerCase() || '';
+                                const a2 = l2.airline_name?.toLowerCase() || '';
+                                const a3 = l3.airline_name?.toLowerCase() || '';
+                                if (!a1.includes(airlineVal) && !a2.includes(airlineVal) && !a3.includes(airlineVal)) return;
+                            }
+                            if (dayVal === 'ANY' && !shareACommonDayThree(l1.days, l2.days, l3.days)) return;
+                            const l3DepMins = timeToMinutes(l3.depart);
+                            const l3ArrMins = timeToMinutes(l3.arrive);
+                            if (l3DepMins === null || l3ArrMins === null) return;
+                            const layover2 = calcLayover(l2ArrMins, l3DepMins);
+                            const continuation2 = isContinuationLeg(l2, l3);
+                            if (layover2 === null || layover2 > MAX_LAYOVER) return;
+                            if (!continuation2 && layover2 < MIN_LAYOVER) return;
+                            masterConnectionsPool.push({
+                                isNonStop: false, isTwoStop: true,
+                                totalTravelMinutes: calcTotalTime(l1DepMins, l3ArrMins),
+                                layover1, layover2,
+                                leg1: l1, leg2: l2, leg3: l3
+                            });
+                        });
+                    });
+                });
+            }
+
+            sortSelect.value = 'totalTime';
+            sortPool('totalTime');
+            renderCards(masterConnectionsPool);
+            sortSelect.disabled = masterConnectionsPool.length === 0;
+
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            console.error(err);
+            resultsContainer.innerHTML = '<p class="error">Error retrieving data. Please try again.</p>';
+        } finally {
+            searchBtn.disabled    = false;
+            searchBtn.textContent = 'Search';
+        }
+    });
+
+    clearBtn.addEventListener('click', function() {
+        if (activeAbortController) activeAbortController.abort();
+        form.reset();
+        originInput.value      = '';
+        destinationInput.value = '';
+        airlineInput.value     = '';
+        yearInput.selectedIndex   = 0;
+        searchDay.selectedIndex   = 0;
+        sortSelect.value          = 'totalTime';
+        sortSelect.disabled       = true;
+        masterConnectionsPool     = [];
+        resultsContainer.innerHTML = '';
+    });
+</script>
+</body>
+</html>

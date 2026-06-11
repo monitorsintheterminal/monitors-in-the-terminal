@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Connection Finder</title>
+    <style>
+        :root {
+            --bg-color: #0d0d0d;
+            --panel-color: #1a1a1a;
+            --border-color: #444;
+            --accent-blue: #007bff;
+            --text-main: #e0e0e0;
+            --text-dim: #999;
+            --font-display: 'Consolas', 'Lucida Console', 'Monaco', monospace;
+        }
+
+        body { font-family: var(--font-display); line-height: 1.5; margin: 0; padding: 40px 20px; background-color: var(--bg-color); color: var(--text-main); }
+        .crt-frame { max-width: 900px; margin: 0 auto; background: var(--panel-color); border: 8px solid #333; border-radius: 4px; padding: 25px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .search-form { display: flex; flex-direction: column; gap: 20px; border-bottom: 2px solid var(--border-color); padding-bottom: 20px; margin-bottom: 20px; }
+        h3 { margin-top: 0; color: #fff; text-transform: uppercase; letter-spacing: 2px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .grid-row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 11px; font-weight: bold; color: var(--text-dim); text-transform: uppercase; }
+        select, input[type="text"] { padding: 10px; font-family: var(--font-display); font-size: 14px; border: 1px solid #333; background-color: #000; color: #fff; width: 100%; box-sizing: border-box; }
+        input[type="text"]:focus, select:focus { border-color: var(--accent-blue); outline: none; }
+        button { padding: 12px; font-size: 14px; border: none; cursor: pointer; font-weight: bold; text-transform: uppercase; font-family: var(--font-display); }
+        .primary-btn { background-color: var(--accent-blue); color: white; flex: 2; }
+        .primary-btn:hover { background-color: #0056b3; }
+        .primary-btn:disabled { background-color: #333; color: #666; cursor: not-allowed; }
+        .secondary-btn { background-color: #444; color: #ccc; flex: 1; }
+        .secondary-btn:hover { background-color: #555; }
+
+        .results-wrapper { max-width: 900px; margin: 0 auto; }
+
+        .selector-box { background: #000; border: 2px solid #333; padding: 15px; margin-bottom: 20px; }
+        .selector-box h4 { margin: 0 0 12px 0; font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+        .inbound-flight-option { 
+            display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 0.8fr;
+            align-items: center; padding: 10px 12px; background: #111; border: 1px solid #333;
+            margin-bottom: 5px; cursor: pointer; font-size: 13px; gap: 8px;
+        }
+        .inbound-flight-option:hover { background-color: #1a1a1a; border-color: #666; }
+        .inbound-flight-option.selected { border: 1px solid var(--accent-blue); background-color: #001a33; }
+        .inbound-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-bottom: 2px; }
+        .inbound-value { font-weight: bold; color: #fff; }
+        .inbound-time { color: var(--accent-blue); font-weight: bold; }
+
+        .table-container { background-color: #000; border: 1px solid #333; overflow: hidden; }
+        .results-count { font-size: 12px; color: var(--text-dim); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .board-banner { background: #111; border-bottom: 2px solid #333; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+        .board-banner-title { color: #fff; font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; }
+        .board-banner-sub   { color: var(--text-dim); font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+        th { background-color: #111; color: #aaa; font-weight: normal; padding: 10px 12px; text-transform: uppercase; font-size: 11px; cursor: pointer; user-select: none; letter-spacing: 0.5px; }
+        th:hover { color: #fff; background-color: #1a1a1a; }
+        th.sorted { color: #fff; }
+        th::after  { content: ' ↕'; font-size: 9px; color: #444; }
+        th.asc::after  { content: ' ↑'; color: var(--accent-blue); }
+        th.desc::after { content: ' ↓'; color: var(--accent-blue); }
+        td { padding: 10px 12px; border-bottom: 1px solid #111; color: #fff; font-weight: normal; font-size: 14px; }
+        tr:hover td { background-color: #0a0a0a; }
+        .td-time { color: var(--accent-blue); font-weight: bold; font-size: 16px; letter-spacing: 0.5px; }
+        .td-dest { font-weight: normal; font-size: 14px; }
+        .td-dim  { color: var(--text-dim); font-size: 13px; font-weight: normal; }
+
+        .status-msg { color: #888; text-align: center; padding: 20px; font-style: italic; }
+        .error { color: #ff6666; text-align: center; font-weight: bold; padding: 20px; }
+
+        .airline-toggle { display: flex; gap: 0; margin-bottom: 12px; border: 1px solid #333; border-radius: 3px; overflow: hidden; width: fit-content; }
+        .toggle-btn { padding: 8px 16px; font-family: var(--font-display); font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; border: none; background: #111; color: #666; transition: background 0.15s, color 0.15s; }
+        .toggle-btn:hover { color: #aaa; }
+        .toggle-btn.active { background: var(--accent-blue); color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="crt-frame">
+    <form id="singleFlightForm" class="search-form">
+        <h3>Connection Finder</h3>
+        <div class="grid-row-4">
+            <div class="input-group">
+                <label for="sfOrigin">Origin *</label>
+                <input type="text" id="sfOrigin" list="sfOriginOptions" placeholder="Loading..." disabled required>
+                <datalist id="sfOriginOptions"></datalist>
+            </div>
+            <div class="input-group">
+                <label for="sfHub">Connecting Airport *</label>
+                <input type="text" id="sfHub" list="sfHubOptions" placeholder="Loading..." disabled required>
+                <datalist id="sfHubOptions"></datalist>
+            </div>
+            <div class="input-group">
+                <label for="sfYear">Year *</label>
+                <select id="sfYear" disabled required>
+                    <option value="" disabled selected hidden>Loading...</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="sfDay">Day Filter</label>
+                <select id="sfDay">
+                    <option value="ANY">Any Day</option>
+                    <option value="Mo">Monday</option>
+                    <option value="Tu">Tuesday</option>
+                    <option value="We">Wednesday</option>
+                    <option value="Th">Thursday</option>
+                    <option value="Fr">Friday</option>
+                    <option value="Sa">Saturday</option>
+                    <option value="Su">Sunday</option>
+                </select>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button type="submit" id="sfSearchBtn" class="primary-btn" disabled>Loading...</button>
+            <button type="button" id="sfClearBtn" class="secondary-btn">Reset</button>
+        </div>
+    </form>
+
+    <div id="inboundSelectorContainer" class="results-wrapper"></div>
+    <div id="connectionResults" class="results-wrapper"></div>
+</div>
+
+<script>
+    const SUPABASE_URL      = "https://rquyikhkoygtqkqedxoq.supabase.co/rest/v1";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdXlpa2hrb3lndHFrcWVkeG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1OTAsImV4cCI6MjA5NjQzOTU5MH0.8YuEErIDMjTcW0VJbkdvJQ4ayRTvzLTErAmQpMpl-Ok";
+    const HEADERS = {
+        "apikey":        SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    };
+
+    const MIN_LAYOVER = 35;
+    const MAX_LAYOVER = 240;
+
+    const form                   = document.getElementById('singleFlightForm');
+    const sfSearchBtn            = document.getElementById('sfSearchBtn');
+    const sfClearBtn             = document.getElementById('sfClearBtn');
+    const sfOrigin               = document.getElementById('sfOrigin');
+    const sfHub                  = document.getElementById('sfHub');
+    const sfYear                 = document.getElementById('sfYear');
+    const sfDay                  = document.getElementById('sfDay');
+    const inboundContainer       = document.getElementById('inboundSelectorContainer');
+    const connectionContainer    = document.getElementById('connectionResults');
+
+    let rawOutboundPool   = [];
+    let inboundMatches    = [];
+    let currentConnections = [];
+    let currentSortCol    = 'depart';
+    let sortAsc           = true;
+    let airlineFilterMode = 'affiliated';
+    let activeAbortController = null;
+
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return null;
+        const parts = timeStr.split(':');
+        if (parts.length < 2) return null;
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    }
+
+    function formatTime(timeStr) {
+        if (!timeStr) return '—';
+        const [hStr, mStr] = timeStr.split(':');
+        let h = parseInt(hStr, 10);
+        const m = mStr || '00';
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        if (h === 0) h = 12;
+        else if (h > 12) h -= 12;
+        return `${h}:${m} ${ampm}`;
+    }
+
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function areAffiliatedAirlines(a1, a2) {
+        if (!a1 || !a2) return false;
+        const n1 = a1.toLowerCase().trim();
+        const n2 = a2.toLowerCase().trim();
+        return n1.includes(n2) || n2.includes(n1);
+    }
+
+    function flightOperatesOnDay(daysStr, targetDay) {
+        if (targetDay === 'ANY') return true;
+        if (!daysStr) return true;
+        return daysStr.includes(targetDay);
+    }
+
+    function calcLayover(arrMins, depMins) {
+        if (arrMins === null || depMins === null) return null;
+        let layover = depMins - arrMins;
+        if (layover < 0) layover += 1440;
+        return layover;
+    }
+
+    async function initialize() {
+        try {
+            const [seasonsRes, airportsRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/airports?select=display_name&order=display_name.asc`, { headers: HEADERS })
+            ]);
+            if (!seasonsRes.ok || !airportsRes.ok) throw new Error();
+
+            const seasons  = await seasonsRes.json();
+            const airports = await airportsRes.json();
+
+            sfYear.innerHTML = `<option value="" disabled selected hidden>Select a Year</option>`;
+            seasons.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.season_code;
+                opt.textContent = s.season_label;
+                sfYear.appendChild(opt);
+            });
+
+            ['sfOriginOptions', 'sfHubOptions'].forEach(listId => {
+                const dl = document.getElementById(listId);
+                airports.forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = a.display_name;
+                    dl.appendChild(opt);
+                });
+            });
+
+            sfOrigin.placeholder = 'City name or airport code...';
+            sfHub.placeholder    = 'City name or airport code...';
+            sfOrigin.disabled    = false;
+            sfHub.disabled       = false;
+            sfYear.disabled      = false;
+            sfSearchBtn.disabled    = false;
+            sfSearchBtn.textContent = 'Find Inbound Flights';
+
+        } catch (err) {
+            console.error(err);
+            inboundContainer.innerHTML = '<p class="error">Error loading form data. Please refresh.</p>';
+        }
+    }
+
+    initialize();
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const origin  = sfOrigin.value.trim();
+        const hub     = sfHub.value.trim();
+        const year    = sfYear.value;
+        const dayVal  = sfDay.value;
+
+        if (!origin || !hub || !year) {
+            alert('Please fill in Origin, Connecting Airport, and Year.');
+            return;
+        }
+        if (origin.toLowerCase() === hub.toLowerCase()) {
+            alert('Origin and connecting airport cannot be the same.');
+            return;
+        }
+
+        if (activeAbortController) activeAbortController.abort();
+        activeAbortController = new AbortController();
+        const signal = activeAbortController.signal;
+
+        rawOutboundPool    = [];
+        inboundMatches     = [];
+        currentConnections = [];
+        connectionContainer.innerHTML = '';
+
+        sfSearchBtn.disabled    = true;
+        sfSearchBtn.textContent = 'Searching...';
+        inboundContainer.innerHTML = '<p class="status-msg">Scanning schedule bank...</p>';
+
+        try {
+            const base          = `${SUPABASE_URL}/flights`;
+            const seasonFilter  = `season=eq.${encodeURIComponent(year)}`;
+            const dayFilter     = dayVal !== 'ANY'
+                ? `&days=ilike.${encodeURIComponent('%' + dayVal + '%')}`
+                : '';
+
+            const [inRes, outRes] = await Promise.all([
+                fetch(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+origin+'%')}&dest_name=ilike.${encodeURIComponent('%'+hub+'%')}${dayFilter}&limit=1000`, { headers: HEADERS, signal }),
+                fetch(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+hub+'%')}${dayFilter}&limit=1000`, { headers: HEADERS, signal })
+            ]);
+            if (!inRes.ok || !outRes.ok) throw new Error('API error');
+
+            const inData  = await inRes.json();
+            rawOutboundPool = await outRes.json();
+
+            inboundMatches = inData.sort((a, b) => {
+                const tA = timeToMinutes(a.depart) ?? 9999;
+                const tB = timeToMinutes(b.depart) ?? 9999;
+                return tA - tB;
+            });
+
+            if (inboundMatches.length === 0) {
+                inboundContainer.innerHTML = '<p class="status-msg">No inbound flights found for that route and year.</p>';
+                return;
+            }
+
+            renderInboundSelector();
+
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+            console.error(err);
+            inboundContainer.innerHTML = '<p class="error">Error retrieving data. Please try again.</p>';
+        } finally {
+            sfSearchBtn.disabled    = false;
+            sfSearchBtn.textContent = 'Find Inbound Flights';
+        }
+    });
+
+    function renderInboundSelector() {
+        let html = `<div class="selector-box"><h4>Select your inbound flight to see onward connections:</h4>`;
+        inboundMatches.forEach((f, idx) => {
+            html += `
+                <div class="inbound-flight-option" onclick="selectInbound(${idx}, this)">
+                    <div><div class="inbound-label">Airline / Flight</div><div class="inbound-value">${esc(f.airline_name)} ${esc(f.flight)}</div></div>
+                    <div><div class="inbound-label">Departs</div><div class="inbound-time">${esc(formatTime(f.depart))}</div></div>
+                    <div><div class="inbound-label">Arrives</div><div class="inbound-time">${esc(formatTime(f.arrive))}</div></div>
+                    <div><div class="inbound-label">Frequency</div><div class="inbound-value">${esc(f.frequency || 'Daily')}</div></div>
+                    <div><div class="inbound-label">Equip.</div><div class="inbound-value">${esc(f.equipment || '—')}</div></div>
+                </div>`;
+        });
+        html += `</div>`;
+        inboundContainer.innerHTML = html;
+    }
+
+    window.selectInbound = function(idx, el) {
+        document.querySelectorAll('.inbound-flight-option').forEach(e => e.classList.remove('selected'));
+        el.classList.add('selected');
+
+        const inFlight  = inboundMatches[idx];
+        const inArrMins = timeToMinutes(inFlight.arrive);
+        const dayVal    = sfDay.value;
+
+        currentConnections = [];
+
+        rawOutboundPool.forEach(out => {
+            if (dayVal === 'ANY' && !shareACommonDay(inFlight.days, out.days)) return;
+            const outDepMins = timeToMinutes(out.depart);
+            if (outDepMins === null || inArrMins === null) return;
+            const layover = calcLayover(inArrMins, outDepMins);
+            if (layover === null || layover < MIN_LAYOVER || layover > MAX_LAYOVER) return;
+            currentConnections.push({
+                airline:   out.airline_name || '',
+                flight:    out.flight       || '',
+                dest_name: out.dest_name    || out.dest_code || '',
+                depart:    out.depart       || '',
+                frequency: out.frequency    || '',
+                equipment: out.equipment    || '—',
+                _depMins:  outDepMins,
+                _isAffiliated: areAffiliatedAirlines(inFlight.airline_name, out.airline_name)
+            });
+        });
+
+        currentSortCol = 'depart';
+        sortAsc        = true;
+        renderConnectionTable();
+    };
+
+    function shareACommonDay(days1, days2) {
+        const allDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+        return allDays.some(d =>
+            flightOperatesOnDay(days1, d) && flightOperatesOnDay(days2, d)
+        );
+    }
+
+    function renderConnectionTable() {
+        if (currentConnections.length === 0) {
+            connectionContainer.innerHTML = '<p class="status-msg">No valid connections found from this flight.</p>';
+            return;
+        }
+
+        const displayConnections = airlineFilterMode === 'affiliated'
+            ? currentConnections.filter(c => c._isAffiliated)
+            : currentConnections;
+
+        displayConnections.sort((a, b) => {
+            let vA, vB;
+            switch (currentSortCol) {
+                case 'depart':    vA = a._depMins;   vB = b._depMins;   break;
+                case 'airline':   vA = a.airline;    vB = b.airline;    break;
+                case 'flight':    vA = a.flight;     vB = b.flight;     break;
+                case 'dest_name': vA = a.dest_name;  vB = b.dest_name;  break;
+                case 'frequency': vA = a.frequency;  vB = b.frequency;  break;
+                case 'equipment': vA = a.equipment;  vB = b.equipment;  break;
+                default:          vA = a._depMins;   vB = b._depMins;
+            }
+            if (vA < vB) return sortAsc ? -1 : 1;
+            if (vA > vB) return sortAsc ?  1 : -1;
+            return 0;
+        });
+
+        const thClass = (col) => currentSortCol === col ? (sortAsc ? 'sorted asc' : 'sorted desc') : '';
+        const hubName    = sfHub.value.trim();
+        const totalAll   = currentConnections.length;
+        const totalShown = displayConnections.length;
+
+        let html = `
+            <div class="airline-toggle">
+                <button class="toggle-btn ${airlineFilterMode === 'affiliated' ? 'active' : ''}" onclick="setAirlineFilter('affiliated')">Inbound Airline Only</button>
+                <button class="toggle-btn ${airlineFilterMode === 'all' ? 'active' : ''}" onclick="setAirlineFilter('all')">All Airlines</button>
+            </div>
+            <div class="results-count">${totalShown} departure${totalShown !== 1 ? 's' : ''} shown${airlineFilterMode === 'affiliated' && totalAll > totalShown ? ` &nbsp;(${totalAll - totalShown} additional on other airlines — switch to All Airlines to see them)` : ''}</div>
+            <div class="table-container">
+                <div class="board-banner">
+                    <span class="board-banner-title">⬡ Departures</span>
+                    <span class="board-banner-sub">${esc(hubName)}</span>
+                </div>
+                <table>
+                    <thead><tr>
+                        <th class="${thClass('depart')}"    onclick="doSort('depart')">Departs</th>
+                        <th class="${thClass('dest_name')}" onclick="doSort('dest_name')">Destination</th>
+                        <th class="${thClass('airline')}"   onclick="doSort('airline')">Airline</th>
+                        <th class="${thClass('flight')}"    onclick="doSort('flight')">Flight</th>
+                        <th class="${thClass('frequency')}" onclick="doSort('frequency')">Freq.</th>
+                        <th class="${thClass('equipment')}" onclick="doSort('equipment')">Equip.</th>
+                    </tr></thead>
+                    <tbody>`;
+
+        displayConnections.forEach(c => {
+            html += `<tr>
+                <td class="td-time">${esc(formatTime(c.depart))}</td>
+                <td class="td-dest">${esc(c.dest_name)}</td>
+                <td>${esc(c.airline)}</td>
+                <td class="td-dim">${esc(c.flight)}</td>
+                <td class="td-dim">${esc(c.frequency || 'Daily')}</td>
+                <td class="td-dim">${esc(c.equipment)}</td>
+            </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        connectionContainer.innerHTML = html;
+    }
+
+    window.setAirlineFilter = function(mode) {
+        if (airlineFilterMode === mode) return;
+        airlineFilterMode = mode;
+        renderConnectionTable();
+    };
+
+    window.doSort = function(col) {
+        if (currentSortCol === col) sortAsc = !sortAsc;
+        else { currentSortCol = col; sortAsc = true; }
+        renderConnectionTable();
+    };
+
+    sfClearBtn.addEventListener('click', () => {
+        if (activeAbortController) activeAbortController.abort();
+        form.reset();
+        sfOrigin.value  = '';
+        sfHub.value     = '';
+        rawOutboundPool    = [];
+        inboundMatches     = [];
+        currentConnections = [];
+        currentSortCol     = 'depart';
+        sortAsc            = true;
+        airlineFilterMode  = 'affiliated';
+        inboundContainer.innerHTML    = '';
+        connectionContainer.innerHTML = '';
+    });
+</script>
+
+</body>
+</html>
