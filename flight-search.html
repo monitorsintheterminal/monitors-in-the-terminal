@@ -81,9 +81,461 @@
         <!-- ═══════════════════════════════════════════════════════
              PASTE YOUR FLIGHT SEARCH TOOL EMBED CODE BELOW HERE
              ═══════════════════════════════════════════════════════ -->
-        <div style="background:#1a1a1a; border:1px dashed #333; padding:40px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:12px; color:#555; border-radius:4px;">
-            [ Flight Search tool embed goes here ]
+<body>
+
+<div class="timetable-container">
+
+    <div class="timetable-header">
+        <span>Flight Search</span>
+        <span class="sub-tag">System Timetable Index</span>
+    </div>
+
+    <form id="flightSearchForm" class="search-form">
+        <div class="grid-row-3">
+            <div class="input-group">
+                <label for="originInput">Origin</label>
+                <input type="text" id="originInput" list="originOptions" placeholder="Loading..." disabled>
+                <datalist id="originOptions"></datalist>
+            </div>
+            <div class="input-group">
+                <label for="destinationInput">Destination</label>
+                <input type="text" id="destinationInput" list="destinationOptions" placeholder="Loading..." disabled>
+                <datalist id="destinationOptions"></datalist>
+            </div>
+            <div class="input-group">
+                <label for="airlineInput">Airline</label>
+                <input type="text" id="airlineInput" list="airlineOptions" placeholder="Loading..." disabled>
+                <datalist id="airlineOptions"></datalist>
+            </div>
         </div>
+
+        <div class="grid-row-3">
+            <div class="input-group">
+                <label for="seasonInput">Year *</label>
+                <select id="seasonInput" disabled required>
+                    <option value="" disabled selected hidden>Loading...</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="dayInput">Day of Week</label>
+                <select id="dayInput" disabled>
+                    <option value="">All Days</option>
+                    <option value="Mo">Monday</option>
+                    <option value="Tu">Tuesday</option>
+                    <option value="We">Wednesday</option>
+                    <option value="Th">Thursday</option>
+                    <option value="Fr">Friday</option>
+                    <option value="Sa">Saturday</option>
+                    <option value="Su">Sunday</option>
+                </select>
+            </div>
+            <div class="input-group"></div>
+        </div>
+
+        <div class="btn-row">
+            <button type="submit" id="searchBtn" disabled>Loading Form Data...</button>
+            <button type="button" id="clearBtn">Clear Filters</button>
+        </div>
+    </form>
+
+    <div class="filter-section">
+        <div class="filter-section-title">Live Result Filters (After Search)</div>
+        
+        <div class="time-block">
+            <div class="time-title">Departure Window</div>
+            <div class="time-inputs">
+                <div class="input-group" style="flex:1;">
+                    <label for="departAfter" style="font-size:10px; color:#555;">After</label>
+                    <input type="time" id="departAfter">
+                </div>
+                <div class="input-group" style="flex:1;">
+                    <label for="departBefore" style="font-size:10px; color:#555;">Before</label>
+                    <input type="time" id="departBefore">
+                </div>
+            </div>
+        </div>
+
+        <div class="time-block">
+            <div class="time-title">Arrival Window</div>
+            <div class="time-inputs">
+                <div class="input-group" style="flex:1;">
+                    <label for="arriveAfter" style="font-size:10px; color:#555;">After</label>
+                    <input type="time" id="arriveAfter">
+                </div>
+                <div class="input-group" style="flex:1;">
+                    <label for="arriveBefore" style="font-size:10px; color:#555;">Before</label>
+                    <input type="time" id="arriveBefore">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="sheetResults"></div>
+
+</div>
+
+<script>
+    // ── Supabase config ───────────────────────────────────────────
+    const SUPABASE_URL = "https://rquyikhkoygtqkqedxoq.supabase.co/rest/v1";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdXlpa2hrb3lndHFrcWVkeG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1OTAsImV4cCI6MjA5NjQzOTU5MH0.8YuEErIDMjTcW0VJbkdvJQ4ayRTvzLTErAmQpMpl-Ok";
+    const HEADERS = {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    };
+
+    // ── DOM refs ──────────────────────────────────────────────────
+    const form            = document.getElementById('flightSearchForm');
+    const searchBtn       = document.getElementById('searchBtn');
+    const clearBtn        = document.getElementById('clearBtn');
+    const resultsContainer = document.getElementById('sheetResults');
+    const seasonInput     = document.getElementById('seasonInput');
+    const dayInput        = document.getElementById('dayInput');
+    const originInput     = document.getElementById('originInput');
+    const destinationInput = document.getElementById('destinationInput');
+    const airlineInput    = document.getElementById('airlineInput');
+
+    // ── State ─────────────────────────────────────────────────────
+    let allFetchedFlights  = [];
+    let currentResultsPool = [];
+    let currentSortColumn  = "";
+    let isSortAscending    = true;
+    let searchWasTruncated = false;
+    let activeAbortController = null;   // for cancelling in-flight requests
+
+    // ── Helpers ───────────────────────────────────────────────────
+
+    // Formats a Supabase TIME string "HH:MM:SS" for display as "H:MM AM/PM"
+    function formatTime(timeStr) {
+        if (!timeStr) return '';
+        const [hStr, mStr] = timeStr.split(':');
+        let h = parseInt(hStr, 10);
+        const m = mStr || '00';
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        if (h === 0) h = 12;
+        else if (h > 12) h -= 12;
+        return `${h}:${m} ${ampm}`;
+    }
+
+    // Converts a Supabase TIME string "HH:MM:SS" to minutes since midnight
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return null;
+        const parts = timeStr.split(':');
+        if (parts.length < 2) return null;
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    }
+
+    // Converts an HTML time input value "HH:MM" to minutes since midnight
+    function htmlTimeToMinutes(htmlTimeStr) {
+        if (!htmlTimeStr) return null;
+        const parts = htmlTimeStr.split(':');
+        if (parts.length < 2) return null;
+        return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+
+    // Sanitise a string for safe innerHTML insertion
+    function esc(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // ── Initialise dropdowns ──────────────────────────────────────
+
+    // Populates the airline datalist from an array of airline name strings
+    function populateAirlineDatalist(airlineNames) {
+        const dl = document.getElementById('airlineOptions');
+        dl.innerHTML = '';
+        airlineNames.sort().forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            dl.appendChild(opt);
+        });
+    }
+
+    async function initializeDropdowns() {
+        try {
+            const seasonsRes = await fetch(
+                `${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`,
+                { headers: HEADERS }
+            );
+            if (!seasonsRes.ok) throw new Error('Failed to load seasons');
+            const seasons = await seasonsRes.json();
+
+            seasonInput.innerHTML = `<option value="" disabled selected hidden>Select a Year</option>`;
+            seasons.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.season_code;
+                opt.textContent = s.season_label;
+                seasonInput.appendChild(opt);
+            });
+            seasonInput.disabled = false;
+
+            // Fetch all airports and airlines — both are global, never season-filtered
+            const [airportsRes, airlinesRes] = await Promise.all([
+                fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name&order=display_name.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`, { headers: HEADERS })
+            ]);
+            if (!airportsRes.ok || !airlinesRes.ok) throw new Error('Failed to load lookup data');
+
+            const airports = await airportsRes.json();
+            const airlines = await airlinesRes.json();
+
+            ['originOptions', 'destinationOptions'].forEach(listId => {
+                const dl = document.getElementById(listId);
+                dl.innerHTML = '';
+                airports.forEach(a => {
+                    const opt = document.createElement('option');
+                    opt.value = a.display_name;
+                    dl.appendChild(opt);
+                });
+            });
+
+            populateAirlineDatalist(airlines.map(a => a.airline_name));
+
+            originInput.placeholder      = "City name or airport code...";
+            destinationInput.placeholder = "City name or airport code...";
+            airlineInput.placeholder     = "Type to search...";
+            originInput.disabled      = false;
+            destinationInput.disabled = false;
+            airlineInput.disabled     = false;
+            dayInput.disabled         = false;
+            searchBtn.textContent     = "Search Flights";
+            searchBtn.disabled        = false;
+
+        } catch (err) {
+            console.error(err);
+            resultsContainer.innerHTML = '<p class="error">Error loading search options. Please refresh and try again.</p>';
+        }
+    }
+
+    initializeDropdowns();
+
+    // ── Render table ──────────────────────────────────────────────
+    function renderTable(flightsArray) {
+        let warningHtml = '';
+        if (searchWasTruncated) {
+            warningHtml = `
+                <div class="cap-warning">
+                    ⚠️ Display limit reached (2,000 flights). 
+                    Narrow your search by specifying an Origin, Destination, or Airline to see complete results.
+                </div>`;
+        }
+
+        if (flightsArray.length === 0) {
+            resultsContainer.innerHTML = warningHtml +
+                '<p style="margin-top:20px; font-weight:600; color:#555;">No flights match the selected criteria.</p>';
+            return;
+        }
+
+        const arrow = isSortAscending ? ' &uarr;' : ' &darr;';
+
+        let html = warningHtml + `
+            <div class="results-count">Total Displayed: ${flightsArray.length} flights</div>
+            <div class="table-container">
+                <table>
+                    <thead><tr>
+                        <th class="sortable" onclick="sortData('airline_name')">Airline${currentSortColumn === 'airline_name' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('flight')">Flight${currentSortColumn === 'flight' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('origin_name')">Origin${currentSortColumn === 'origin_name' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('dest_name')">Destination${currentSortColumn === 'dest_name' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('depart')">Depart${currentSortColumn === 'depart' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('arrive')">Arrive${currentSortColumn === 'arrive' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('equipment')">Equip.${currentSortColumn === 'equipment' ? arrow : ''}</th>
+                        <th class="sortable" onclick="sortData('frequency')">Freq.${currentSortColumn === 'frequency' ? arrow : ''}</th>
+                    </tr></thead>
+                    <tbody>`;
+
+        flightsArray.forEach(row => {
+            html += `<tr>
+                <td><strong>${esc(row.airline_name)}</strong></td>
+                <td>${esc(row.flight)}</td>
+                <td>${esc(row.origin_name || row.origin_code)}</td>
+                <td>${esc(row.dest_name || row.dest_code)}</td>
+                <td>${esc(formatTime(row.depart))}</td>
+                <td>${esc(formatTime(row.arrive))}</td>
+                <td>${esc(row.equipment)}</td>
+                <td>${esc(row.frequency)}</td>
+            </tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+        resultsContainer.innerHTML = html;
+    }
+
+    // ── Post-search client-side time filters ──────────────────────
+    function applyPostSearchFilters() {
+        const depAfterMin  = htmlTimeToMinutes(document.getElementById('departAfter').value);
+        const depBeforeMin = htmlTimeToMinutes(document.getElementById('departBefore').value);
+        const arrAfterMin  = htmlTimeToMinutes(document.getElementById('arriveAfter').value);
+        const arrBeforeMin = htmlTimeToMinutes(document.getElementById('arriveBefore').value);
+
+        currentResultsPool = allFetchedFlights.filter(row => {
+            const dep = timeToMinutes(row.depart);
+            const arr = timeToMinutes(row.arrive);
+            if (depAfterMin  !== null && (dep === null || dep < depAfterMin))  return false;
+            if (depBeforeMin !== null && (dep === null || dep > depBeforeMin)) return false;
+            if (arrAfterMin  !== null && (arr === null || arr < arrAfterMin))  return false;
+            if (arrBeforeMin !== null && (arr === null || arr > arrBeforeMin)) return false;
+            return true;
+        });
+
+        if (currentSortColumn) {
+            executePoolSort(currentSortColumn, false);
+        } else {
+            renderTable(currentResultsPool);
+        }
+    }
+
+    ['departAfter', 'departBefore', 'arriveAfter', 'arriveBefore'].forEach(id => {
+        document.getElementById(id).addEventListener('input', applyPostSearchFilters);
+    });
+
+    // ── Sorting ───────────────────────────────────────────────────
+    window.sortData = function(columnName) {
+        if (currentSortColumn === columnName) {
+            isSortAscending = !isSortAscending;
+        } else {
+            currentSortColumn = columnName;
+            isSortAscending   = true;
+        }
+        executePoolSort(columnName, true);
+    };
+
+    function executePoolSort(columnName, shouldRender = true) {
+        currentResultsPool.sort((a, b) => {
+            // Time columns: sort by minutes since midnight
+            if (columnName === 'depart' || columnName === 'arrive') {
+                const minA = timeToMinutes(a[columnName]) ?? (isSortAscending ? Infinity : -Infinity);
+                const minB = timeToMinutes(b[columnName]) ?? (isSortAscending ? Infinity : -Infinity);
+                return isSortAscending ? minA - minB : minB - minA;
+            }
+            const valA = (a[columnName] ?? '').toString().trim();
+            const valB = (b[columnName] ?? '').toString().trim();
+            return isSortAscending
+                ? valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' })
+                : valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+        });
+        if (shouldRender) renderTable(currentResultsPool);
+    }
+
+    // ── Search ────────────────────────────────────────────────────
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const selectedSeason = seasonInput.value;
+        if (!selectedSeason) {
+            alert("Please select a Year first.");
+            return;
+        }
+
+        // Cancel any in-flight request
+        if (activeAbortController) activeAbortController.abort();
+        activeAbortController = new AbortController();
+        const signal = activeAbortController.signal;
+
+        // Reset state
+        allFetchedFlights  = [];
+        currentResultsPool = [];
+        currentSortColumn  = "";
+        isSortAscending    = true;
+        searchWasTruncated = false;
+
+        // Disable button to prevent double-submission
+        searchBtn.disabled    = true;
+        searchBtn.textContent = "Searching...";
+        resultsContainer.innerHTML = `<p class="status-msg">Searching flight records for ${esc(selectedSeason)}...</p>`;
+
+        try {
+            // Build Supabase query filters
+            const filters = [`season=eq.${encodeURIComponent(selectedSeason)}`];
+
+            const originVal  = originInput.value.trim();
+            const destVal    = destinationInput.value.trim();
+            const airlineVal = airlineInput.value.trim();
+            const dayVal     = dayInput.value;
+
+            // Query against origin_name / dest_name directly — no code resolution needed.
+            // ilike does case-insensitive contains matching, so typing any part of the
+            // display name (city, state, or the "(XXX)" code) finds the right flights.
+            if (originVal) {
+                filters.push(`origin_name=ilike.${encodeURIComponent('%' + originVal + '%')}`);
+            }
+            if (destVal) {
+                filters.push(`dest_name=ilike.${encodeURIComponent('%' + destVal + '%')}`);
+            }
+            if (airlineVal) {
+                filters.push(`airline_name=ilike.${encodeURIComponent('%' + airlineVal + '%')}`);
+            }
+            if (dayVal) {
+                filters.push(`days=ilike.${encodeURIComponent('%' + dayVal + '%')}`);
+            }
+
+            // Paginate up to 2,000 row safety ceiling
+            const limit    = 1000;
+            const maxRows  = 2000;
+            let offset     = 0;
+            let keepFetching = true;
+
+            while (keepFetching) {
+                const url = `${SUPABASE_URL}/flights?${filters.join('&')}&limit=${limit}&offset=${offset}&order=depart.asc`;
+                const res = await fetch(url, { headers: HEADERS, signal });
+                if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+                const batch = await res.json();
+                allFetchedFlights = allFetchedFlights.concat(batch);
+
+                if (batch.length < limit) {
+                    keepFetching = false;
+                } else if (allFetchedFlights.length >= maxRows) {
+                    keepFetching      = false;
+                    searchWasTruncated = true;
+                } else {
+                    offset += limit;
+                    resultsContainer.innerHTML = `<p class="status-msg">Retrieved ${allFetchedFlights.length} rows, continuing...</p>`;
+                }
+            }
+
+            applyPostSearchFilters();
+
+        } catch (err) {
+            if (err.name === 'AbortError') return; // request was intentionally cancelled
+            console.error(err);
+            resultsContainer.innerHTML = '<p class="error">Error retrieving data. Please try again.</p>';
+        } finally {
+            searchBtn.disabled    = false;
+            searchBtn.textContent = "Search Flights";
+        }
+    });
+
+    // ── Clear ─────────────────────────────────────────────────────
+    clearBtn.addEventListener('click', function() {
+        if (activeAbortController) activeAbortController.abort();
+        form.reset();
+        originInput.value      = "";
+        destinationInput.value = "";
+        airlineInput.value     = "";
+        seasonInput.selectedIndex  = 0;
+        dayInput.selectedIndex     = 0;
+        document.getElementById('departAfter').value  = "";
+        document.getElementById('departBefore').value = "";
+        document.getElementById('arriveAfter').value  = "";
+        document.getElementById('arriveBefore').value = "";
+        allFetchedFlights      = [];
+        currentResultsPool     = [];
+        currentSortColumn      = "";
+        isSortAscending        = true;
+        searchWasTruncated     = false;
+        resultsContainer.innerHTML = "";
+    });
+</script>
+
+</body>
         <!-- ═══════════════════════════════════════════════════════
              END TOOL EMBED
              ═══════════════════════════════════════════════════════ -->
