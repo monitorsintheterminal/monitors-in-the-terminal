@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Flight Search</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 15px; padding: 0; background-color: #fcf9f2; color: #1e2530;
+        }
+        .timetable-container { max-width: 800px; margin: 0 auto; }
+        .timetable-header {
+            background-color: #1a3a6c; color: #ffffff; padding: 12px 20px; font-size: 20px;
+            font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+            border-radius: 4px 4px 0 0; border-bottom: 3px solid #0f2447;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .timetable-header .sub-tag { font-size: 11px; font-weight: 400; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 2px; }
+        .search-form {
+            display: flex; flex-direction: column; gap: 15px; background-color: #f5eedc;
+            padding: 20px; border: 2px solid #1a3a6c; border-top: none;
+            border-radius: 0 0 6px 6px; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .grid-row-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 12px; font-weight: 700; color: #1a3a6c; text-transform: uppercase; letter-spacing: 0.5px; }
+        select, input[type="text"], input[type="time"] { 
+            padding: 8px 10px; font-size: 14px; border: 1px solid #a69c84; border-radius: 3px;
+            background-color: #ffffff; height: 38px; width: 100%; box-sizing: border-box; color: #1e2530;
+        }
+        input[type="text"]:focus, select:focus, input[type="time"]:focus { border-color: #1a3a6c; outline: none; box-shadow: 0 0 0 2px rgba(26,58,108,0.15); }
+        .filter-section { background-color: #eaddca; border: 1px dashed #1a3a6c; padding: 15px; border-radius: 6px; margin-top: 20px; display: grid; grid-template-columns: repeat(2,1fr); gap: 15px; }
+        .filter-section-title { grid-column: span 2; font-size: 13px; font-weight: 700; color: #1a3a6c; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #c4b9a3; padding-bottom: 5px; margin-bottom: 5px; }
+        .time-block { background-color: rgba(255,255,255,0.5); padding: 10px; border-radius: 4px; border: 1px solid #c4b9a3; }
+        .time-title { font-size: 11px; font-weight: 700; color: #444; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .time-inputs { display: flex; gap: 10px; }
+        .btn-row { display: flex; gap: 12px; margin-top: 5px; }
+        button { padding: 12px; font-size: 15px; border: none; border-radius: 3px; cursor: pointer; font-weight: 700; flex: 2; box-sizing: border-box; text-transform: uppercase; letter-spacing: 0.5px; }
+        #searchBtn { background-color: #1a3a6c; color: white; }
+        #searchBtn:hover { background-color: #0f2447; }
+        #searchBtn:disabled { background-color: #c4b9a3; cursor: not-allowed; color: #7a705a; }
+        #clearBtn { background-color: #dbd2be; color: #1a3a6c; border: 1px solid #a69c84; flex: 1; }
+        #clearBtn:hover { background-color: #cfc4ad; }
+        .cap-warning { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; padding: 12px; border-radius: 4px; margin-top: 15px; font-size: 13px; font-weight: 600; }
+        .table-container { width: 100%; overflow-x: auto; margin-top: 15px; border: 2px solid #1a3a6c; border-radius: 4px; background-color: #ffffff; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; font-variant-numeric: tabular-nums; }
+        th { background-color: #1a3a6c; color: #ffffff; font-weight: 700; padding: 10px 8px; border-bottom: 2px solid #0f2447; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        th.sortable { cursor: pointer; position: relative; user-select: none; }
+        th.sortable:hover { background-color: #254f8c; }
+        td { padding: 8px; border-bottom: 1px solid #e8e2d5; color: #2e3745; }
+        tr:nth-child(even) { background-color: #fdfcf7; }
+        tr:hover { background-color: #f5eedc; }
+        .status-msg { color: #1a3a6c; font-style: italic; font-weight: 600; margin-top: 15px; }
+        .error { color: #b8251b; font-weight: 600; }
+        .results-count { font-size: 13px; font-weight: 700; margin-top: 20px; color: #1a3a6c; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+<div class="timetable-container">
+    <div class="timetable-header">
+        <span>Flight Search</span>
+        <span class="sub-tag">System Timetable Index</span>
+    </div>
+    <form id="flightSearchForm" class="search-form">
+        <div class="grid-row-3">
+            <div class="input-group"><label for="originInput">Origin</label><input type="text" id="originInput" list="originOptions" placeholder="Loading..." disabled><datalist id="originOptions"></datalist></div>
+            <div class="input-group"><label for="destinationInput">Destination</label><input type="text" id="destinationInput" list="destinationOptions" placeholder="Loading..." disabled><datalist id="destinationOptions"></datalist></div>
+            <div class="input-group"><label for="airlineInput">Airline</label><input type="text" id="airlineInput" list="airlineOptions" placeholder="Loading..." disabled><datalist id="airlineOptions"></datalist></div>
+        </div>
+        <div class="grid-row-3">
+            <div class="input-group">
+                <label for="seasonInput">Year *</label>
+                <select id="seasonInput" disabled required><option value="" disabled selected hidden>Loading...</option></select>
+            </div>
+            <div class="input-group">
+                <label for="dayInput">Day of Week</label>
+                <select id="dayInput" disabled>
+                    <option value="">All Days</option>
+                    <option value="Mo">Monday</option><option value="Tu">Tuesday</option><option value="We">Wednesday</option>
+                    <option value="Th">Thursday</option><option value="Fr">Friday</option><option value="Sa">Saturday</option><option value="Su">Sunday</option>
+                </select>
+            </div>
+            <div class="input-group"></div>
+        </div>
+        <div class="btn-row">
+            <button type="submit" id="searchBtn" disabled>Loading Form Data...</button>
+            <button type="button" id="clearBtn">Clear Filters</button>
+        </div>
+    </form>
+    <div class="filter-section">
+        <div class="filter-section-title">Live Result Filters (After Search)</div>
+        <div class="time-block">
+            <div class="time-title">Departure Window</div>
+            <div class="time-inputs">
+                <div class="input-group" style="flex:1;"><label for="departAfter" style="font-size:10px;color:#555;">After</label><input type="time" id="departAfter"></div>
+                <div class="input-group" style="flex:1;"><label for="departBefore" style="font-size:10px;color:#555;">Before</label><input type="time" id="departBefore"></div>
+            </div>
+        </div>
+        <div class="time-block">
+            <div class="time-title">Arrival Window</div>
+            <div class="time-inputs">
+                <div class="input-group" style="flex:1;"><label for="arriveAfter" style="font-size:10px;color:#555;">After</label><input type="time" id="arriveAfter"></div>
+                <div class="input-group" style="flex:1;"><label for="arriveBefore" style="font-size:10px;color:#555;">Before</label><input type="time" id="arriveBefore"></div>
+            </div>
+        </div>
+    </div>
+    <div id="sheetResults"></div>
+</div>
+<script>
+    const SUPABASE_URL = "https://rquyikhkoygtqkqedxoq.supabase.co/rest/v1";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdXlpa2hrb3lndHFrcWVkeG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1OTAsImV4cCI6MjA5NjQzOTU5MH0.8YuEErIDMjTcW0VJbkdvJQ4ayRTvzLTErAmQpMpl-Ok";
+    const HEADERS = {"apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}`};
+    const form = document.getElementById('flightSearchForm');
+    const searchBtn = document.getElementById('searchBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const resultsContainer = document.getElementById('sheetResults');
+    const seasonInput = document.getElementById('seasonInput');
+    const dayInput = document.getElementById('dayInput');
+    const originInput = document.getElementById('originInput');
+    const destinationInput = document.getElementById('destinationInput');
+    const airlineInput = document.getElementById('airlineInput');
+    let allFetchedFlights=[], currentResultsPool=[], currentSortColumn="", isSortAscending=true, searchWasTruncated=false, activeAbortController=null;
+    function formatTime(t){if(!t)return'';const[h,m]=t.split(':');let hr=parseInt(h);const ap=hr>=12?'PM':'AM';if(hr===0)hr=12;else if(hr>12)hr-=12;return`${hr}:${m} ${ap}`;}
+    function timeToMinutes(t){if(!t)return null;const p=t.split(':');if(p.length<2)return null;const h=parseInt(p[0]),m=parseInt(p[1]);return isNaN(h)||isNaN(m)?null:h*60+m;}
+    function htmlTimeToMinutes(t){if(!t)return null;const p=t.split(':');return p.length<2?null:parseInt(p[0])*60+parseInt(p[1]);}
+    function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+    function populateAirlineDatalist(names){const dl=document.getElementById('airlineOptions');dl.innerHTML='';names.sort().forEach(n=>{const o=document.createElement('option');o.value=n;dl.appendChild(o);});}
+    async function initializeDropdowns(){
+        try{
+            const[sR,aR,alR]=await Promise.all([
+                fetch(`${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`,{headers:HEADERS}),
+                fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name&order=display_name.asc`,{headers:HEADERS}),
+                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`,{headers:HEADERS})
+            ]);
+            const seasons=await sR.json(),airports=await aR.json(),airlines=await alR.json();
+            seasonInput.innerHTML='<option value="" disabled selected hidden>Select a Year</option>';
+            seasons.forEach(s=>{const o=document.createElement('option');o.value=s.season_code;o.textContent=s.season_label;seasonInput.appendChild(o);});
+            seasonInput.disabled=false;
+            ['originOptions','destinationOptions'].forEach(id=>{const dl=document.getElementById(id);dl.innerHTML='';airports.forEach(a=>{const o=document.createElement('option');o.value=a.display_name;dl.appendChild(o);});});
+            populateAirlineDatalist(airlines.map(a=>a.airline_name));
+            originInput.placeholder=destinationInput.placeholder='City name or airport code...';
+            airlineInput.placeholder='Type to search...';
+            originInput.disabled=destinationInput.disabled=airlineInput.disabled=dayInput.disabled=false;
+            searchBtn.textContent='Search Flights';searchBtn.disabled=false;
+        }catch(err){console.error(err);resultsContainer.innerHTML='<p class="error">Error loading search options. Please refresh.</p>';}
+    }
+    initializeDropdowns();
+    function renderTable(flights){
+        let warn='';
+        if(searchWasTruncated)warn='<div class="cap-warning">&#9888; Display limit reached (2,000 flights). Narrow your search by specifying an Origin, Destination, or Airline.</div>';
+        if(!flights.length){resultsContainer.innerHTML=warn+'<p style="margin-top:20px;font-weight:600;color:#555;">No flights match the selected criteria.</p>';return;}
+        const arr=isSortAscending?' &uarr;':' &darr;';
+        let h=warn+`<div class="results-count">Total Displayed: ${flights.length} flights</div><div class="table-container"><table><thead><tr>`;
+        [['airline_name','Airline'],['flight','Flight'],['origin_name','Origin'],['dest_name','Destination'],['depart','Depart'],['arrive','Arrive'],['equipment','Equip.'],['frequency','Freq.']].forEach(([k,l])=>h+=`<th class="sortable" onclick="sortData('${k}')">${l}${currentSortColumn===k?arr:''}</th>`);
+        h+='</tr></thead><tbody>';
+        flights.forEach(r=>{h+=`<tr><td><strong>${esc(r.airline_name)}</strong></td><td>${esc(r.flight)}</td><td>${esc(r.origin_name||r.origin_code)}</td><td>${esc(r.dest_name||r.dest_code)}</td><td>${esc(formatTime(r.depart))}</td><td>${esc(formatTime(r.arrive))}</td><td>${esc(r.equipment)}</td><td>${esc(r.frequency)}</td></tr>`;});
+        h+='</tbody></table></div>';resultsContainer.innerHTML=h;
+    }
+    function applyPostSearchFilters(){
+        const da=htmlTimeToMinutes(document.getElementById('departAfter').value),db=htmlTimeToMinutes(document.getElementById('departBefore').value),aa=htmlTimeToMinutes(document.getElementById('arriveAfter').value),ab=htmlTimeToMinutes(document.getElementById('arriveBefore').value);
+        currentResultsPool=allFetchedFlights.filter(r=>{const d=timeToMinutes(r.depart),a=timeToMinutes(r.arrive);return!(da!==null&&(d===null||d<da))&&!(db!==null&&(d===null||d>db))&&!(aa!==null&&(a===null||a<aa))&&!(ab!==null&&(a===null||a>ab));});
+        currentSortColumn?executePoolSort(currentSortColumn,false):renderTable(currentResultsPool);
+    }
+    ['departAfter','departBefore','arriveAfter','arriveBefore'].forEach(id=>document.getElementById(id).addEventListener('input',applyPostSearchFilters));
+    window.sortData=function(col){if(currentSortColumn===col)isSortAscending=!isSortAscending;else{currentSortColumn=col;isSortAscending=true;}executePoolSort(col,true);};
+    function executePoolSort(col,render=true){
+        currentResultsPool.sort((a,b)=>{
+            if(col==='depart'||col==='arrive'){const ma=timeToMinutes(a[col])??(isSortAscending?Infinity:-Infinity),mb=timeToMinutes(b[col])??(isSortAscending?Infinity:-Infinity);return isSortAscending?ma-mb:mb-ma;}
+            const va=(a[col]??'').toString().trim(),vb=(b[col]??'').toString().trim();
+            return isSortAscending?va.localeCompare(vb,undefined,{numeric:true,sensitivity:'base'}):vb.localeCompare(va,undefined,{numeric:true,sensitivity:'base'});
+        });
+        if(render)renderTable(currentResultsPool);
+    }
+    form.addEventListener('submit',async function(e){
+        e.preventDefault();
+        const selectedSeason=seasonInput.value;if(!selectedSeason){alert('Please select a Year first.');return;}
+        if(activeAbortController)activeAbortController.abort();
+        activeAbortController=new AbortController();const signal=activeAbortController.signal;
+        allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;
+        searchBtn.disabled=true;searchBtn.textContent='Searching...';
+        resultsContainer.innerHTML=`<p class="status-msg">Searching flight records for ${esc(selectedSeason)}...</p>`;
+        try{
+            const filters=[`season=eq.${encodeURIComponent(selectedSeason)}`];
+            const ov=originInput.value.trim(),dv=destinationInput.value.trim(),av=airlineInput.value.trim(),dy=dayInput.value;
+            if(ov)filters.push(`origin_name=ilike.${encodeURIComponent('%'+ov+'%')}`);
+            if(dv)filters.push(`dest_name=ilike.${encodeURIComponent('%'+dv+'%')}`);
+            if(av)filters.push(`airline_name=ilike.${encodeURIComponent('%'+av+'%')}`);
+            if(dy)filters.push(`days=ilike.${encodeURIComponent('%'+dy+'%')}`);
+            const limit=1000,max=2000;let offset=0,keep=true;
+            while(keep){
+                const url=`${SUPABASE_URL}/flights?${filters.join('&')}&limit=${limit}&offset=${offset}&order=depart.asc`;
+                const res=await fetch(url,{headers:HEADERS,signal});if(!res.ok)throw new Error(`API error: ${res.status}`);
+                const batch=await res.json();allFetchedFlights=allFetchedFlights.concat(batch);
+                if(batch.length<limit)keep=false;
+                else if(allFetchedFlights.length>=max){keep=false;searchWasTruncated=true;}
+                else{offset+=limit;resultsContainer.innerHTML=`<p class="status-msg">Retrieved ${allFetchedFlights.length} rows, continuing...</p>`;}
+            }
+            applyPostSearchFilters();
+        }catch(err){if(err.name==='AbortError')return;console.error(err);resultsContainer.innerHTML='<p class="error">Error retrieving data. Please try again.</p>';}
+        finally{searchBtn.disabled=false;searchBtn.textContent='Search Flights';}
+    });
+    clearBtn.addEventListener('click',function(){
+        if(activeAbortController)activeAbortController.abort();
+        form.reset();originInput.value=destinationInput.value=airlineInput.value='';
+        seasonInput.selectedIndex=dayInput.selectedIndex=0;
+        ['departAfter','departBefore','arriveAfter','arriveBefore'].forEach(id=>document.getElementById(id).value='');
+        allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;resultsContainer.innerHTML='';
+    });
+</script>
+</body>
+</html>
