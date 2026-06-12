@@ -11,6 +11,13 @@
         html { scroll-behavior: smooth; }
         body { background: #0f0f0f; color: #e0e0e0; font-family: 'Inter', sans-serif; line-height: 1.6; min-height: 100vh; }
         a { text-decoration: none; color: inherit; }
+        /* Content hyperlinks — visibly styled as links */
+        .footer-tagline a {
+            color: #4a8fdb;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .footer-tagline a:hover { color: #7ab0f0; }
         .nav { background: #1a3a6c; border-bottom: 2px solid #0f2447; position: sticky; top: 0; z-index: 100; }
         .nav-inner { max-width: 1100px; margin: 0 auto; padding: 0 32px; height: 52px; display: flex; justify-content: space-between; align-items: center; }
         .nav-logo { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 3px; color: #ffffff; }
@@ -46,10 +53,10 @@
         .legend-dot { width: 7px; height: 7px; border-radius: 1px; flex-shrink: 0; }
         .footer { background: #080808; border-top: 1px solid #111111; padding: 28px 32px; }
         .footer-inner { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
-        .footer-logo { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 3px; color: #333333; margin-bottom: 8px; }
-        .footer-tagline { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #2a2a2a; letter-spacing: 0.5px; line-height: 1.6; }
-        .footer-contact-heading { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #444444; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
-        .footer-contact-body { font-size: 12px; color: #555555; line-height: 1.7; }
+        .footer-logo { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 3px; color: #555555; margin-bottom: 8px; }
+        .footer-tagline { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #444444; letter-spacing: 0.5px; line-height: 1.6; }
+        .footer-contact-heading { font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 3px; color: #555555; margin-bottom: 8px; }
+        .footer-contact-body { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #444444; line-height: 1.7; letter-spacing: 0.5px; }
         .footer-contact-body a { color: #1a6cbb; transition: color 0.15s; }
         .footer-contact-body a:hover { color: #4a8fdb; }
         @media (max-width: 800px) { .page-header { padding: 28px 20px 20px; } .page-title { font-size: 36px; } .tool-section { padding: 20px; } .cov-table th, .cov-table td { padding: 5px 6px; font-size: 9px; } .partial-note { display: none; } .footer-inner { grid-template-columns: 1fr; gap: 20px; } }
