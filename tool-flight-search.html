@@ -3,56 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <title>Flight Search</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
     <style>
         body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            margin: 15px; padding: 0; background-color: #fcf9f2; color: #1e2530;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 15px; padding: 0; background-color: #1a1814; color: #e0ddd6;
         }
         .timetable-container { max-width: 800px; margin: 0 auto; }
         .timetable-header {
-            background-color: #1a3a6c; color: #ffffff; padding: 12px 20px; font-size: 20px;
-            font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+            background-color: #1a6cbb; color: #ffffff; padding: 12px 20px; font-size: 20px;
+            font-family: 'Bebas Neue', sans-serif; font-weight: 400; letter-spacing: 2.5px; text-transform: uppercase;
             border-radius: 4px 4px 0 0; border-bottom: 3px solid #0f2447;
             display: flex; justify-content: space-between; align-items: center;
         }
-        .timetable-header .sub-tag { font-size: 11px; font-weight: 400; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 2px; }
+        .timetable-header .sub-tag { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 400; background: rgba(255,255,255,0.15); padding: 4px 8px; border-radius: 2px; letter-spacing: 0.5px; }
         .search-form {
-            display: flex; flex-direction: column; gap: 15px; background-color: #f5eedc;
-            padding: 20px; border: 2px solid #1a3a6c; border-top: none;
-            border-radius: 0 0 6px 6px; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex; flex-direction: column; gap: 15px; background-color: #2a2620;
+            padding: 20px; border: 2px solid #1a6cbb; border-top: none;
+            border-radius: 0 0 6px 6px; box-sizing: border-box; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         .grid-row-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; }
         .input-group { display: flex; flex-direction: column; gap: 5px; }
-        label { font-size: 12px; font-weight: 700; color: #1a3a6c; text-transform: uppercase; letter-spacing: 0.5px; }
+        label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #8fb8e0; text-transform: uppercase; letter-spacing: 0.5px; }
         select, input[type="text"], input[type="time"] { 
-            padding: 8px 10px; font-size: 14px; border: 1px solid #a69c84; border-radius: 3px;
-            background-color: #ffffff; height: 38px; width: 100%; box-sizing: border-box; color: #1e2530;
+            padding: 8px 10px; font-size: 14px; border: 1px solid #4a4438; border-radius: 3px;
+            background-color: #1a1814; height: 38px; width: 100%; box-sizing: border-box; color: #e0ddd6;
         }
-        input[type="text"]:focus, select:focus, input[type="time"]:focus { border-color: #1a3a6c; outline: none; box-shadow: 0 0 0 2px rgba(26,58,108,0.15); }
-        .filter-section { background-color: #eaddca; border: 1px dashed #1a3a6c; padding: 15px; border-radius: 6px; margin-top: 20px; display: grid; grid-template-columns: repeat(2,1fr); gap: 15px; }
-        .filter-section-title { grid-column: span 2; font-size: 13px; font-weight: 700; color: #1a3a6c; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #c4b9a3; padding-bottom: 5px; margin-bottom: 5px; }
-        .time-block { background-color: rgba(255,255,255,0.5); padding: 10px; border-radius: 4px; border: 1px solid #c4b9a3; }
-        .time-title { font-size: 11px; font-weight: 700; color: #444; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        input[type="text"]:focus, select:focus, input[type="time"]:focus { border-color: #1a6cbb; outline: none; box-shadow: 0 0 0 2px rgba(26,108,187,0.25); }
+        .filter-section { background-color: #221f1a; border: 1px dashed #4a4438; padding: 15px; border-radius: 6px; margin-top: 20px; display: grid; grid-template-columns: repeat(2,1fr); gap: 15px; }
+        .filter-section-title { grid-column: span 2; font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; color: #8fb8e0; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #3a3630; padding-bottom: 5px; margin-bottom: 5px; }
+        .time-block { background-color: rgba(255,255,255,0.03); padding: 10px; border-radius: 4px; border: 1px solid #3a3630; }
+        .time-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700; color: #999990; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
         .time-inputs { display: flex; gap: 10px; }
         .btn-row { display: flex; gap: 12px; margin-top: 5px; }
-        button { padding: 12px; font-size: 15px; border: none; border-radius: 3px; cursor: pointer; font-weight: 700; flex: 2; box-sizing: border-box; text-transform: uppercase; letter-spacing: 0.5px; }
-        #searchBtn { background-color: #1a3a6c; color: white; }
+        button { padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; border: none; border-radius: 3px; cursor: pointer; font-weight: 700; flex: 2; box-sizing: border-box; text-transform: uppercase; letter-spacing: 1px; }
+        #searchBtn { background-color: #1a6cbb; color: white; }
         #searchBtn:hover { background-color: #0f2447; }
-        #searchBtn:disabled { background-color: #c4b9a3; cursor: not-allowed; color: #7a705a; }
-        #clearBtn { background-color: #dbd2be; color: #1a3a6c; border: 1px solid #a69c84; flex: 1; }
-        #clearBtn:hover { background-color: #cfc4ad; }
-        .cap-warning { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; padding: 12px; border-radius: 4px; margin-top: 15px; font-size: 13px; font-weight: 600; }
-        .table-container { width: 100%; overflow-x: auto; margin-top: 15px; border: 2px solid #1a3a6c; border-radius: 4px; background-color: #ffffff; }
+        #searchBtn:disabled { background-color: #4a4438; cursor: not-allowed; color: #8a8378; }
+        #clearBtn { background-color: #3a3630; color: #c9c4ba; border: 1px solid #4a4438; flex: 1; }
+        #clearBtn:hover { background-color: #4a4438; }
+        .cap-warning { background-color: #3a2020; color: #e09090; border: 1px solid #5a3030; padding: 12px; border-radius: 4px; margin-top: 15px; font-size: 13px; font-weight: 600; }
+        .table-container { width: 100%; overflow-x: auto; margin-top: 15px; border: 2px solid #1a6cbb; border-radius: 4px; background-color: #1a1814; }
         table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; font-variant-numeric: tabular-nums; }
-        th { background-color: #1a3a6c; color: #ffffff; font-weight: 700; padding: 10px 8px; border-bottom: 2px solid #0f2447; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        th { background-color: #1a6cbb; color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-weight: 700; padding: 10px 8px; border-bottom: 2px solid #0f2447; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
         th.sortable { cursor: pointer; position: relative; user-select: none; }
-        th.sortable:hover { background-color: #254f8c; }
-        td { padding: 8px; border-bottom: 1px solid #e8e2d5; color: #2e3745; }
-        tr:nth-child(even) { background-color: #fdfcf7; }
-        tr:hover { background-color: #f5eedc; }
-        .status-msg { color: #1a3a6c; font-style: italic; font-weight: 600; margin-top: 15px; }
-        .error { color: #b8251b; font-weight: 600; }
-        .results-count { font-size: 13px; font-weight: 700; margin-top: 20px; color: #1a3a6c; text-transform: uppercase; }
+        th.sortable:hover { background-color: #2a7fd4; }
+        td { padding: 8px; border-bottom: 1px solid #2a2620; color: #d8d4cc; }
+        tr:nth-child(even) { background-color: #201d18; }
+        tr:hover { background-color: #2a2620; }
+        .status-msg { color: #8fb8e0; font-style: italic; font-weight: 600; margin-top: 15px; }
+        .error { color: #e09090; font-weight: 600; }
+        .results-count { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; margin-top: 20px; color: #8fb8e0; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
