@@ -45,7 +45,7 @@
         #clearBtn:hover { background-color: #4a4438; }
         .cap-warning { background-color: #3a2020; color: #e09090; border: 1px solid #5a3030; padding: 12px; border-radius: 4px; margin-top: 15px; font-size: 13px; font-weight: 600; }
         .table-container { width: 100%; overflow-x: auto; margin-top: 15px; border: 2px solid #1a6cbb; border-radius: 4px; background-color: #1a1814; }
-        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; font-variant-numeric: tabular-nums; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; font-variant-numeric: tabular-nums; }
         th { background-color: #1a6cbb; color: #ffffff; font-family: 'IBM Plex Mono', monospace; font-weight: 700; padding: 10px 8px; border-bottom: 2px solid #0f2447; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
         th.sortable { cursor: pointer; position: relative; user-select: none; }
         th.sortable:hover { background-color: #2a7fd4; }
@@ -155,7 +155,7 @@
         let h=warn+`<div class="results-count">Total Displayed: ${flights.length} flights</div><div class="table-container"><table><thead><tr>`;
         [['airline_name','Airline'],['flight','Flight'],['origin_name','Origin'],['dest_name','Destination'],['depart','Depart'],['arrive','Arrive'],['equipment','Equip.'],['frequency','Freq.']].forEach(([k,l])=>h+=`<th class="sortable" onclick="sortData('${k}')">${l}${currentSortColumn===k?arr:''}</th>`);
         h+='</tr></thead><tbody>';
-        flights.forEach(r=>{h+=`<tr><td><strong>${esc(r.airline_name)}</strong></td><td>${esc(r.flight)}</td><td>${esc(r.origin_name||r.origin_code)}</td><td>${esc(r.dest_name||r.dest_code)}</td><td>${esc(formatTime(r.depart))}</td><td>${esc(formatTime(r.arrive))}</td><td>${esc(r.equipment)}</td><td>${esc(r.frequency)}</td></tr>`;});
+        flights.forEach(r=>{h+=`<tr><td>${esc(r.airline_name)}</td><td>${esc(r.flight)}</td><td>${esc(r.origin_name||r.origin_code)}</td><td>${esc(r.dest_name||r.dest_code)}</td><td>${esc(formatTime(r.depart))}</td><td>${esc(formatTime(r.arrive))}</td><td>${esc(r.equipment)}</td><td>${esc(r.frequency)}</td></tr>`;});
         h+='</tbody></table></div>';resultsContainer.innerHTML=h;
     }
     function applyPostSearchFilters(){
