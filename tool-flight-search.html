@@ -176,6 +176,11 @@
     form.addEventListener('submit',async function(e){
         e.preventDefault();
         const selectedSeason=seasonInput.value;if(!selectedSeason){alert('Please select a Year first.');return;}
+        const ov=originInput.value.trim(),dv=destinationInput.value.trim(),av=airlineInput.value.trim();
+        if(!ov&&!dv&&!av){
+            resultsContainer.innerHTML='<p class="status-msg">Please enter at least one additional filter — Origin, Destination, or Airline — to search.</p>';
+            return;
+        }
         if(activeAbortController)activeAbortController.abort();
         activeAbortController=new AbortController();const signal=activeAbortController.signal;
         allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;
@@ -183,7 +188,7 @@
         resultsContainer.innerHTML=`<p class="status-msg">Searching flight records for ${esc(selectedSeason)}...</p>`;
         try{
             const filters=[`season=eq.${encodeURIComponent(selectedSeason)}`];
-            const ov=originInput.value.trim(),dv=destinationInput.value.trim(),av=airlineInput.value.trim(),dy=dayInput.value;
+            const dy=dayInput.value;
             if(ov)filters.push(`origin_name=ilike.${encodeURIComponent('%'+ov+'%')}`);
             if(dv)filters.push(`dest_name=ilike.${encodeURIComponent('%'+dv+'%')}`);
             if(av)filters.push(`airline_name=ilike.${encodeURIComponent('%'+av+'%')}`);
