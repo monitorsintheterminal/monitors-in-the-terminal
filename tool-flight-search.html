@@ -109,9 +109,9 @@
     <div id="sheetResults"></div>
 </div>
 <script>
-    const SUPABASE_URL = "https://rquyikhkoygtqkqedxoq.supabase.co/rest/v1";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxdXlpa2hrb3lndHFrcWVkeG9xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NjM1OTAsImV4cCI6MjA5NjQzOTU5MH0.8YuEErIDMjTcW0VJbkdvJQ4ayRTvzLTErAmQpMpl-Ok";
-    const HEADERS = {"apikey": SUPABASE_ANON_KEY, "Authorization": `Bearer ${SUPABASE_ANON_KEY}`};
+    const SUPABASE_URL = "https://monitors-proxy.sam-skardon.workers.dev";
+    // API key secured via Cloudflare Worker proxy
+    const HEADERS = {};
     const form = document.getElementById('flightSearchForm');
     const searchBtn = document.getElementById('searchBtn');
     const clearBtn = document.getElementById('clearBtn');
