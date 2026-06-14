@@ -354,7 +354,11 @@
         currentSortCol = 'depart';
         sortAsc        = true;
         renderConnectionTable();
+        logSearch({tool:'connection-finder',season:sfYear.value,origin:sfOrigin.value.trim()||null,destination:sfHub.value.trim()||null,airline:inFlight.airline_name||null,day_of_week:sfDay.value!=='ANY'?sfDay.value:null,result_count:currentConnections.length});
     };
+    function logSearch(data){
+        fetch(`${SUPABASE_URL}/search_logs`,{method:'POST',headers:{...HEADERS,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)}).catch(()=>{});
+    }
 
     function shareACommonDay(days1, days2) {
         const allDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
