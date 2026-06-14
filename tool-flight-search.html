@@ -228,7 +228,6 @@
     function logSearch(data){
         fetch(`${SUPABASE_URL}/search_logs`,{method:'POST',headers:{...HEADERS,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)}).catch(()=>{});
     }
-    });
     clearBtn.addEventListener('click',function(){
         if(activeAbortController)activeAbortController.abort();
         form.reset();originInput.value=destinationInput.value=airlineInput.value='';
