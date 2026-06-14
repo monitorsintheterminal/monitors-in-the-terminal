@@ -560,10 +560,6 @@
                     const continuation = isContinuationLeg(l1, l2);
                     if (layover === null || layover > MAX_LAYOVER) return;
                     if (!continuation && layover < MIN_LAYOVER) return;
-                    // Don't add continuation legs to the 1-stop pool —
-                    // they represent a through-flight segment, not a true connection.
-                    // They will still be found as part of a 2-stop search.
-                    if (continuation) return;
                     masterConnectionsPool.push({
                         isNonStop: false, isTwoStop: false,
                         totalTravelMinutes: calcTotalTime(l1DepMins, l2ArrMins),
@@ -573,10 +569,10 @@
                 });
             });
 
-            if (masterConnectionsPool.length === 0) {
+            const genuineOneStops = masterConnectionsPool.filter(r => !isContinuationLeg(r.leg1, r.leg2));
+            if (genuineOneStops.length === 0) {
                 resultsContainer.innerHTML = '<p class="status-msg">No direct or 1-stop service found. Searching 2-stop connections...</p>';
-                const destCodes = new Set(resLeg2.map(f => f.origin_code).filter(Boolean));
-                const hubACandidates = [...new Set(resLeg1.map(f => f.dest_code).filter(c => c && !destCodes.has(c)))].slice(0, 20);
+                const hubACandidates = [...new Set(resLeg1.map(f => f.dest_code).filter(c => c && c !== originCode))].slice(0, 20);
                 const middleResults = await Promise.all(
                     hubACandidates.map(hubA => fetchAll(`${base}?${seasonFilter}&origin_code=eq.${encodeURIComponent(hubA)}${dayFilter}`, signal).catch(() => []))
                 );
