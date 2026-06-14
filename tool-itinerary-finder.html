@@ -560,6 +560,10 @@
                     const continuation = isContinuationLeg(l1, l2);
                     if (layover === null || layover > MAX_LAYOVER) return;
                     if (!continuation && layover < MIN_LAYOVER) return;
+                    // Don't add continuation legs to the 1-stop pool —
+                    // they represent a through-flight segment, not a true connection.
+                    // They will still be found as part of a 2-stop search.
+                    if (continuation) return;
                     masterConnectionsPool.push({
                         isNonStop: false, isTwoStop: false,
                         totalTravelMinutes: calcTotalTime(l1DepMins, l2ArrMins),
