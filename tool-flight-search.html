@@ -55,6 +55,10 @@
         .status-msg { color: #999990; font-size: 12px; font-family: 'IBM Plex Mono', monospace; margin-top: 15px; }
         .error { color: #e09090; font-size: 12px; font-family: 'IBM Plex Mono', monospace; margin-top: 15px; }
         .results-count { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 700; margin-top: 20px; color: #8fb8e0; text-transform: uppercase; letter-spacing: 1px; }
+        .pagination { display: flex; align-items: center; gap: 12px; margin-top: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #999990; }
+        .pagination button { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 700; padding: 5px 14px; background: #2a2620; border: 1px solid #4a4438; color: #c9c4ba; border-radius: 3px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.5px; flex: unset; }
+        .pagination button:hover { background: #3a3630; }
+        .pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -112,6 +116,7 @@
     const SUPABASE_URL = "https://monitors-proxy.sam-skardon.workers.dev";
     // API key secured via Cloudflare Worker proxy
     const HEADERS = {};
+    const PAGE_SIZE = 100;
     const form = document.getElementById('flightSearchForm');
     const searchBtn = document.getElementById('searchBtn');
     const clearBtn = document.getElementById('clearBtn');
@@ -121,7 +126,7 @@
     const originInput = document.getElementById('originInput');
     const destinationInput = document.getElementById('destinationInput');
     const airlineInput = document.getElementById('airlineInput');
-    let allFetchedFlights=[], currentResultsPool=[], currentSortColumn="", isSortAscending=true, searchWasTruncated=false, activeAbortController=null;
+    let allFetchedFlights=[], currentResultsPool=[], currentSortColumn="", isSortAscending=true, searchWasTruncated=false, activeAbortController=null, currentPage=0;
     function formatTime(t){if(!t)return'';const[h,m]=t.split(':');let hr=parseInt(h);const ap=hr>=12?'PM':'AM';if(hr===0)hr=12;else if(hr>12)hr-=12;return`${hr}:${m} ${ap}`;}
     function timeToMinutes(t){if(!t)return null;const p=t.split(':');if(p.length<2)return null;const h=parseInt(p[0]),m=parseInt(p[1]);return isNaN(h)||isNaN(m)?null:h*60+m;}
     function htmlTimeToMinutes(t){if(!t)return null;const p=t.split(':');return p.length<2?null:parseInt(p[0])*60+parseInt(p[1]);}
@@ -150,21 +155,34 @@
     function renderTable(flights){
         let warn='';
         if(searchWasTruncated)warn='<div class="cap-warning">&#9888; Display limit reached (2,000 flights). Narrow your search by specifying an Origin, Destination, or Airline.</div>';
-        if(!flights.length){resultsContainer.innerHTML=warn+'<p style="margin-top:20px;font-weight:600;color:#555;">No flights match the selected criteria.</p>';return;}
+        if(!flights.length){resultsContainer.innerHTML=warn+'<p class="status-msg">No flights match the selected criteria.</p>';return;}
+        const totalPages=Math.ceil(flights.length/PAGE_SIZE);
+        if(currentPage>=totalPages)currentPage=totalPages-1;
+        const pageFlights=flights.slice(currentPage*PAGE_SIZE,(currentPage+1)*PAGE_SIZE);
+        const start=currentPage*PAGE_SIZE+1, end=Math.min((currentPage+1)*PAGE_SIZE,flights.length);
         const arr=isSortAscending?' &uarr;':' &darr;';
-        let h=warn+`<div class="results-count">Total Displayed: ${flights.length} flights</div><div class="table-container"><table><thead><tr>`;
+        let h=warn+`<div class="results-count">${flights.length} flights found &nbsp;&mdash;&nbsp; showing ${start}–${end}</div><div class="table-container"><table><thead><tr>`;
         [['airline_name','Airline'],['flight','Flight'],['origin_name','Origin'],['dest_name','Destination'],['depart','Depart'],['arrive','Arrive'],['equipment','Equip.'],['frequency','Freq.']].forEach(([k,l])=>h+=`<th class="sortable" onclick="sortData('${k}')">${l}${currentSortColumn===k?arr:''}</th>`);
         h+='</tr></thead><tbody>';
-        flights.forEach(r=>{h+=`<tr><td>${esc(r.airline_name)}</td><td>${esc(r.flight)}</td><td>${esc(r.origin_name||r.origin_code)}</td><td>${esc(r.dest_name||r.dest_code)}</td><td>${esc(formatTime(r.depart))}</td><td>${esc(formatTime(r.arrive))}</td><td>${esc(r.equipment)}</td><td>${esc(r.frequency)}</td></tr>`;});
-        h+='</tbody></table></div>';resultsContainer.innerHTML=h;
+        pageFlights.forEach(r=>{h+=`<tr><td>${esc(r.airline_name)}</td><td>${esc(r.flight)}</td><td>${esc(r.origin_name||r.origin_code)}</td><td>${esc(r.dest_name||r.dest_code)}</td><td>${esc(formatTime(r.depart))}</td><td>${esc(formatTime(r.arrive))}</td><td>${esc(r.equipment)}</td><td>${esc(r.frequency)}</td></tr>`;});
+        h+='</tbody></table></div>';
+        if(totalPages>1){
+            h+=`<div class="pagination">
+                <button onclick="changePage(-1)" ${currentPage===0?'disabled':''}>&#8592; Prev</button>
+                <span>Page ${currentPage+1} of ${totalPages}</span>
+                <button onclick="changePage(1)" ${currentPage>=totalPages-1?'disabled':''}>Next &#8594;</button>
+            </div>`;
+        }
+        resultsContainer.innerHTML=h;
     }
-    function applyPostSearchFilters(){
+    window.changePage=function(dir){currentPage+=dir;renderTable(currentResultsPool);window.scrollTo({top:0,behavior:'smooth'});};
+    function applyPostSearchFilters(){currentPage=0;
         const da=htmlTimeToMinutes(document.getElementById('departAfter').value),db=htmlTimeToMinutes(document.getElementById('departBefore').value),aa=htmlTimeToMinutes(document.getElementById('arriveAfter').value),ab=htmlTimeToMinutes(document.getElementById('arriveBefore').value);
         currentResultsPool=allFetchedFlights.filter(r=>{const d=timeToMinutes(r.depart),a=timeToMinutes(r.arrive);return!(da!==null&&(d===null||d<da))&&!(db!==null&&(d===null||d>db))&&!(aa!==null&&(a===null||a<aa))&&!(ab!==null&&(a===null||a>ab));});
         currentSortColumn?executePoolSort(currentSortColumn,false):renderTable(currentResultsPool);
     }
     ['departAfter','departBefore','arriveAfter','arriveBefore'].forEach(id=>document.getElementById(id).addEventListener('input',applyPostSearchFilters));
-    window.sortData=function(col){if(currentSortColumn===col)isSortAscending=!isSortAscending;else{currentSortColumn=col;isSortAscending=true;}executePoolSort(col,true);};
+    window.sortData=function(col){if(currentSortColumn===col)isSortAscending=!isSortAscending;else{currentSortColumn=col;isSortAscending=true;}currentPage=0;executePoolSort(col,true);};
     function executePoolSort(col,render=true){
         currentResultsPool.sort((a,b)=>{
             if(col==='depart'||col==='arrive'){const ma=timeToMinutes(a[col])??(isSortAscending?Infinity:-Infinity),mb=timeToMinutes(b[col])??(isSortAscending?Infinity:-Infinity);return isSortAscending?ma-mb:mb-ma;}
@@ -183,7 +201,7 @@
         }
         if(activeAbortController)activeAbortController.abort();
         activeAbortController=new AbortController();const signal=activeAbortController.signal;
-        allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;
+        allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;currentPage=0;
         searchBtn.disabled=true;searchBtn.textContent='Searching...';
         resultsContainer.innerHTML=`<p class="status-msg">Searching flight records for ${esc(selectedSeason)}...</p>`;
         try{
@@ -211,7 +229,7 @@
         form.reset();originInput.value=destinationInput.value=airlineInput.value='';
         seasonInput.selectedIndex=dayInput.selectedIndex=0;
         ['departAfter','departBefore','arriveAfter','arriveBefore'].forEach(id=>document.getElementById(id).value='');
-        allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;resultsContainer.innerHTML='';
+        allFetchedFlights=[];currentResultsPool=[];currentSortColumn='';isSortAscending=true;searchWasTruncated=false;currentPage=0;resultsContainer.innerHTML='';
     });
 </script>
 </body>
