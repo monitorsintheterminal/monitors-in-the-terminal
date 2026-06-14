@@ -221,8 +221,13 @@
                 else{offset+=limit;resultsContainer.innerHTML=`<p class="status-msg">Retrieved ${allFetchedFlights.length} rows, continuing...</p>`;}
             }
             applyPostSearchFilters();
+            logSearch({tool:'flight-search',season:selectedSeason,origin:ov||null,destination:dv||null,airline:av||null,day_of_week:dy||null,result_count:allFetchedFlights.length});
         }catch(err){if(err.name==='AbortError')return;console.error(err);resultsContainer.innerHTML='<p class="error">Error retrieving data. Please try again.</p>';}
         finally{searchBtn.disabled=false;searchBtn.textContent='Search Flights';}
+    });
+    function logSearch(data){
+        fetch(`${SUPABASE_URL}/search_logs`,{method:'POST',headers:{...HEADERS,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)}).catch(()=>{});
+    }
     });
     clearBtn.addEventListener('click',function(){
         if(activeAbortController)activeAbortController.abort();
