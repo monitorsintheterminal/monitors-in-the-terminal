@@ -634,6 +634,7 @@
             sortPool('totalTime');
             renderCards(masterConnectionsPool);
             sortSelect.disabled = masterConnectionsPool.length === 0;
+            logSearch({tool:'itinerary-finder',season,origin:originVal||null,destination:destVal||null,airline:airlineVal||null,day_of_week:dayVal!=='ANY'?dayVal:null,result_count:masterConnectionsPool.length});
 
         } catch (err) {
             if (err.name === 'AbortError') return;
@@ -644,6 +645,9 @@
             searchBtn.textContent = 'Search';
         }
     });
+    function logSearch(data){
+        fetch(`${SUPABASE_URL}/search_logs`,{method:'POST',headers:{...HEADERS,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(data)}).catch(()=>{});
+    }
 
     clearBtn.addEventListener('click', function() {
         if (activeAbortController) activeAbortController.abort();
