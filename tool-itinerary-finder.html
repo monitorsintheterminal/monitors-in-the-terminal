@@ -569,6 +569,7 @@
                 });
             });
 
+            const originCode = resLeg1.length > 0 ? resLeg1[0].origin_code : '';
             const genuineOneStops = masterConnectionsPool.filter(r => !isContinuationLeg(r.leg1, r.leg2));
             if (genuineOneStops.length === 0) {
                 resultsContainer.innerHTML = '<p class="status-msg">No direct or 1-stop service found. Searching 2-stop connections...</p>';
@@ -585,7 +586,6 @@
                     if (!leg2ByHubB[code]) leg2ByHubB[code] = [];
                     leg2ByHubB[code].push(f);
                 });
-                const originCode = resLeg1.length > 0 ? resLeg1[0].origin_code : '';
                 resLeg1.forEach(l1 => {
                     const l1DepMins = timeToMinutes(l1.depart);
                     const l1ArrMins = timeToMinutes(l1.arrive);
