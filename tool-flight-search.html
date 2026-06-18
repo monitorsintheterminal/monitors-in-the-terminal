@@ -132,20 +132,60 @@
     function htmlTimeToMinutes(t){if(!t)return null;const p=t.split(':');return p.length<2?null:parseInt(p[0])*60+parseInt(p[1]);}
     function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
     function populateAirlineDatalist(names){const dl=document.getElementById('airlineOptions');dl.innerHTML='';names.sort().forEach(n=>{const o=document.createElement('option');o.value=n;dl.appendChild(o);});}
+    // Metro support: lookup map and airport-code expansion, populated at init
+    let locationLookup = {};  // display_name -> { type: 'airport'|'metro', code }
+    let metroAirports  = {};  // metro_code   -> [airport_code, ...]
+
+    function resolveLocationFilter(val, field) {
+        if (!val) return null;
+        const match = locationLookup[val];
+        if (match && match.type === 'metro') {
+            const codes = metroAirports[match.code];
+            if (!codes || codes.length === 0) return null;
+            return `${field}_code=in.(${codes.join(',')})`;
+        }
+        return `${field}_name=ilike.${encodeURIComponent('%' + val + '%')}`;
+    }
+
     async function initializeDropdowns(){
         try{
-            const[sR,aR,alR]=await Promise.all([
+            const[sR,aR,alR,mR]=await Promise.all([
                 fetch(`${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`,{headers:HEADERS}),
-                fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name&order=display_name.asc`,{headers:HEADERS}),
-                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`,{headers:HEADERS})
+                fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name,metro_code&order=display_name.asc`,{headers:HEADERS}),
+                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`,{headers:HEADERS}),
+                fetch(`${SUPABASE_URL}/metros?select=metro_code,display_name&order=display_name.asc`,{headers:HEADERS})
             ]);
-            const seasons=await sR.json(),airports=await aR.json(),airlines=await alR.json();
+            const seasons=await sR.json(),airports=await aR.json(),airlines=await alR.json(),metros=await mR.json();
+
+            // Build lookup and metro->airport map
+            locationLookup = {};
+            metroAirports  = {};
+            airports.forEach(a => {
+                locationLookup[a.display_name] = { type: 'airport', code: a.airport_code };
+                if (a.metro_code) {
+                    if (!metroAirports[a.metro_code]) metroAirports[a.metro_code] = [];
+                    metroAirports[a.metro_code].push(a.airport_code);
+                }
+            });
+            metros.forEach(m => {
+                locationLookup[m.display_name] = { type: 'metro', code: m.metro_code };
+            });
+
+            // Merge and sort airports + metros into one datalist
+            const allOptions = [
+                ...airports.map(a => a.display_name),
+                ...metros.map(m => m.display_name)
+            ].sort((a,b) => a.localeCompare(b));
+
             seasonInput.innerHTML='<option value="" disabled selected hidden>Select a Year</option>';
             seasons.forEach(s=>{const o=document.createElement('option');o.value=s.season_code;o.textContent=s.season_label;seasonInput.appendChild(o);});
             seasonInput.disabled=false;
-            ['originOptions','destinationOptions'].forEach(id=>{const dl=document.getElementById(id);dl.innerHTML='';airports.forEach(a=>{const o=document.createElement('option');o.value=a.display_name;dl.appendChild(o);});});
+            ['originOptions','destinationOptions'].forEach(id=>{
+                const dl=document.getElementById(id);dl.innerHTML='';
+                allOptions.forEach(name=>{const o=document.createElement('option');o.value=name;dl.appendChild(o);});
+            });
             populateAirlineDatalist(airlines.map(a=>a.airline_name));
-            originInput.placeholder=destinationInput.placeholder='City name or airport code...';
+            originInput.placeholder=destinationInput.placeholder='City, metro area, or airport code...';
             airlineInput.placeholder='Type to search...';
             originInput.disabled=destinationInput.disabled=airlineInput.disabled=dayInput.disabled=false;
             searchBtn.textContent='Search Flights';searchBtn.disabled=false;
@@ -155,7 +195,7 @@
     function renderTable(flights){
         let warn='';
         if(searchWasTruncated)warn='<div class="cap-warning">&#9888; Display limit reached (2,000 flights). Narrow your search by specifying an Origin, Destination, or Airline.</div>';
-        if(!flights.length){resultsContainer.innerHTML=warn+'<p class="status-msg">No flights match the selected criteria.</p>';return;}
+        if(!flights.length){resultsContainer.innerHTML=warn+'<p class="status-msg">No non-stop flights found matching your search criteria. This route may have been served by connecting itineraries — try the <a href="https://terminalmonitors.com/itinerary-finder" style="color:#8fb8e0;">Itinerary Finder</a> to search for 1-stop and 2-stop routings between these cities.</p>';return;}
         const totalPages=Math.ceil(flights.length/PAGE_SIZE);
         if(currentPage>=totalPages)currentPage=totalPages-1;
         const pageFlights=flights.slice(currentPage*PAGE_SIZE,(currentPage+1)*PAGE_SIZE);
@@ -207,8 +247,10 @@
         try{
             const filters=[`season=eq.${encodeURIComponent(selectedSeason)}`];
             const dy=dayInput.value;
-            if(ov)filters.push(`origin_name=ilike.${encodeURIComponent('%'+ov+'%')}`);
-            if(dv)filters.push(`dest_name=ilike.${encodeURIComponent('%'+dv+'%')}`);
+            const originFilter = resolveLocationFilter(ov, 'origin');
+            const destFilter   = resolveLocationFilter(dv, 'dest');
+            if(originFilter) filters.push(originFilter);
+            if(destFilter)   filters.push(destFilter);
             if(av)filters.push(`airline_name=ilike.${encodeURIComponent('%'+av+'%')}`);
             if(dy)filters.push(`days=ilike.${encodeURIComponent('%'+dy+'%')}`);
             const limit=1000,max=2000;let offset=0,keep=true;
