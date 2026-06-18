@@ -260,26 +260,48 @@
         return names.reduce((shortest, n) => n.length < shortest.length ? n : shortest, names[0]);
     }
 
-    function flightOperatesOnDay(daysStr, targetDay) {
-        if (targetDay === 'ANY') return true;
-        if (!daysStr) return true;
-        return daysStr.includes(targetDay);
+    const ALL_DAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+    function rotateDay(dayCode, offset) {
+        const idx = ALL_DAYS.indexOf(dayCode);
+        if (idx === -1) return dayCode;
+        return ALL_DAYS[(idx + offset) % ALL_DAYS.length];
     }
 
-    function shareACommonDay(days1, days2) {
-        const allDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-        return allDays.some(d =>
-            flightOperatesOnDay(days1, d) && flightOperatesOnDay(days2, d)
-        );
+    function operatingDays(daysStr) {
+        // Returns the set of day codes a flight operates on. An empty/missing
+        // days field is treated as "operates every day" (matches prior behavior).
+        if (!daysStr) return ALL_DAYS.slice();
+        return ALL_DAYS.filter(d => daysStr.includes(d));
     }
 
-    function shareACommonDayThree(days1, days2, days3) {
-        const allDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
-        return allDays.some(d =>
-            flightOperatesOnDay(days1, d) &&
-            flightOperatesOnDay(days2, d) &&
-            flightOperatesOnDay(days3, d)
-        );
+    // How many midnights are crossed by a single leg's own flight time
+    // (overnight departures), based on raw clock-time comparison.
+    function legCrossesMidnight(depMins, arrMins) {
+        if (depMins === null || arrMins === null) return 0;
+        return arrMins < depMins ? 1 : 0;
+    }
+
+    // How many midnights are crossed during a layover (waiting at the
+    // connecting airport), based on raw clock-time comparison.
+    function layoverCrossesMidnight(arrMins, depMins) {
+        if (arrMins === null || depMins === null) return 0;
+        return depMins < arrMins ? 1 : 0;
+    }
+
+    // Of the days a leg is required to operate on (requiredDays, expressed in
+    // "current chain position" terms), returns the subset this leg actually
+    // does operate on. Empty result means this leg can't validly extend the
+    // chain on any day.
+    function validLandingDays(legDaysStr, requiredDays) {
+        const legDays = operatingDays(legDaysStr);
+        return requiredDays.filter(d => legDays.includes(d));
+    }
+
+    // Rotates a list of day codes forward by `offset` midnights.
+    function rotateDays(days, offset) {
+        if (offset === 0) return days;
+        return days.map(d => rotateDay(d, offset));
     }
 
     function calcLayover(arrMins, depMins) {
@@ -289,11 +311,16 @@
         return layover;
     }
 
-    function calcTotalTime(depMins, arrMins) {
+    // depMins/arrMins are the raw clock-time-of-day minutes for the very
+    // first departure and very last arrival of the itinerary. dayOffset is
+    // the total number of midnights crossed across the whole itinerary
+    // (every overnight leg + every overnight layover), tracked explicitly by
+    // the caller as the chain is built - NOT inferred from whether the
+    // subtraction happens to go negative, since that guess silently breaks
+    // for journeys of 24h+ that land at a similar-looking clock time.
+    function calcTotalTime(depMins, arrMins, dayOffset) {
         if (depMins === null || arrMins === null) return 0;
-        let total = arrMins - depMins;
-        if (total < 0) total += 1440;
-        return total;
+        return (arrMins - depMins) + (dayOffset * 1440);
     }
 
     function isContinuationLeg(leg1, leg2) {
@@ -443,7 +470,7 @@
             html += `
                 <div class="connection-card">
                     <div class="card-header ${headerClass}">
-                        <span>Option #${idx + 1} &nbsp;|&nbsp; Total time: ${formatMinutes(conn.totalTravelMinutes)} &nbsp;|&nbsp; ${routeSummary}</span>
+                        <span>Option #${idx + 1} &nbsp;|&nbsp; ${routeSummary}</span>
                         <span class="hub-badge ${badgeClass}">${badgeText}</span>
                     </div>
                     ${legRow(conn.leg1, 'Flight 1')}`;
@@ -528,16 +555,17 @@
             const [resDirect, resLeg1, resLeg2] = await Promise.all([
                 fetchAll(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+originVal+'%')}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}${dayFilter}`, signal),
                 fetchAll(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+originVal+'%')}${dayFilter}`, signal),
-                fetchAll(`${base}?${seasonFilter}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}${dayFilter}`, signal)
+                fetchAll(`${base}?${seasonFilter}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}`, signal)
             ]);
 
             resDirect.forEach(f => {
                 if (airlineVal && !f.airline_name?.toLowerCase().includes(airlineVal)) return;
                 const dep = timeToMinutes(f.depart);
                 const arr = timeToMinutes(f.arrive);
+                const dayOffset = legCrossesMidnight(dep, arr);
                 masterConnectionsPool.push({
                     isNonStop: true, isTwoStop: false,
-                    totalTravelMinutes: calcTotalTime(dep, arr),
+                    totalTravelMinutes: calcTotalTime(dep, arr, dayOffset),
                     layover1: 0, layover2: 0,
                     leg1: f, leg2: null, leg3: null
                 });
@@ -556,6 +584,10 @@
                 const l1ArrMins = timeToMinutes(l1.arrive);
                 const l1DepMins = timeToMinutes(l1.depart);
                 if (l1ArrMins === null || l1DepMins === null) return;
+                // Days leg1 is allowed to depart on, before any rotation.
+                const requiredDays1 = dayVal === 'ANY' ? ALL_DAYS.slice() : [dayVal];
+                const leg1ValidDays = validLandingDays(l1.days, requiredDays1);
+                if (leg1ValidDays.length === 0) return;
                 const candidates = leg2ByOriginCode[l1.dest_code] || [];
                 candidates.forEach(l2 => {
                     if (!areAffiliatedAirlines(l1.airline_name, l2.airline_name)) return;
@@ -564,7 +596,6 @@
                         const a2 = l2.airline_name?.toLowerCase() || '';
                         if (!a1.includes(airlineVal) && !a2.includes(airlineVal)) return;
                     }
-                    if (dayVal === 'ANY' && !shareACommonDay(l1.days, l2.days)) return;
                     const l2DepMins = timeToMinutes(l2.depart);
                     const l2ArrMins = timeToMinutes(l2.arrive);
                     if (l2DepMins === null || l2ArrMins === null) return;
@@ -572,9 +603,20 @@
                     const continuation = isContinuationLeg(l1, l2);
                     if (layover === null || layover > MAX_LAYOVER) return;
                     if (!continuation && layover < MIN_LAYOVER) return;
+                    // Midnights crossed between leg1's departure and leg2's
+                    // departure: leg1's own overnight crossing, plus a
+                    // possible overnight layover.
+                    const offsetIntoLeg2 = legCrossesMidnight(l1DepMins, l1ArrMins)
+                        + layoverCrossesMidnight(l1ArrMins, l2DepMins);
+                    const requiredDays2 = rotateDays(leg1ValidDays, offsetIntoLeg2);
+                    if (validLandingDays(l2.days, requiredDays2).length === 0) return;
+                    // Total midnights crossed across the whole itinerary, for
+                    // elapsed-time math (leg1's own crossing + the layover's
+                    // crossing + leg2's own overnight crossing).
+                    const totalDayOffset = offsetIntoLeg2 + legCrossesMidnight(l2DepMins, l2ArrMins);
                     masterConnectionsPool.push({
                         isNonStop: false, isTwoStop: false,
-                        totalTravelMinutes: calcTotalTime(l1DepMins, l2ArrMins),
+                        totalTravelMinutes: calcTotalTime(l1DepMins, l2ArrMins, totalDayOffset),
                         layover1: layover, layover2: 0,
                         leg1: l1, leg2: l2, leg3: null
                     });
@@ -587,7 +629,7 @@
                 resultsContainer.innerHTML = '<p class="status-msg">No direct or 1-stop service found. Searching 2-stop connections...</p>';
                 const hubACandidates = [...new Set(resLeg1.map(f => f.dest_code).filter(c => c && c !== originCode))].slice(0, 20);
                 const middleResults = await Promise.all(
-                    hubACandidates.map(hubA => fetchAll(`${base}?${seasonFilter}&origin_code=eq.${encodeURIComponent(hubA)}${dayFilter}`, signal).catch(() => []))
+                    hubACandidates.map(hubA => fetchAll(`${base}?${seasonFilter}&origin_code=eq.${encodeURIComponent(hubA)}`, signal).catch(() => []))
                 );
                 const middleByHubA = {};
                 hubACandidates.forEach((hubA, i) => { middleByHubA[hubA] = middleResults[i]; });
@@ -602,6 +644,9 @@
                     const l1DepMins = timeToMinutes(l1.depart);
                     const l1ArrMins = timeToMinutes(l1.arrive);
                     if (l1DepMins === null || l1ArrMins === null) return;
+                    const requiredDays1 = dayVal === 'ANY' ? ALL_DAYS.slice() : [dayVal];
+                    const leg1ValidDays = validLandingDays(l1.days, requiredDays1);
+                    if (leg1ValidDays.length === 0) return;
                     const hubA = l1.dest_code;
                     if (!hubA || !middleByHubA[hubA]) return;
                     middleByHubA[hubA].forEach(l2 => {
@@ -615,6 +660,11 @@
                         const continuation1 = isContinuationLeg(l1, l2);
                         if (layover1 === null || layover1 > MAX_LAYOVER) return;
                         if (!continuation1 && layover1 < MIN_LAYOVER) return;
+                        const offsetIntoLeg2 = legCrossesMidnight(l1DepMins, l1ArrMins)
+                            + layoverCrossesMidnight(l1ArrMins, l2DepMins);
+                        const requiredDays2 = rotateDays(leg1ValidDays, offsetIntoLeg2);
+                        const leg2ValidDays = validLandingDays(l2.days, requiredDays2);
+                        if (leg2ValidDays.length === 0) return;
                         leg2ByHubB[hubB].forEach(l3 => {
                             if (!areAffiliatedAirlines(l2.airline_name, l3.airline_name)) return;
                             if (airlineVal) {
@@ -623,7 +673,6 @@
                                 const a3 = l3.airline_name?.toLowerCase() || '';
                                 if (!a1.includes(airlineVal) && !a2.includes(airlineVal) && !a3.includes(airlineVal)) return;
                             }
-                            if (dayVal === 'ANY' && !shareACommonDayThree(l1.days, l2.days, l3.days)) return;
                             const l3DepMins = timeToMinutes(l3.depart);
                             const l3ArrMins = timeToMinutes(l3.arrive);
                             if (l3DepMins === null || l3ArrMins === null) return;
@@ -631,9 +680,19 @@
                             const continuation2 = isContinuationLeg(l2, l3);
                             if (layover2 === null || layover2 > MAX_LAYOVER) return;
                             if (!continuation2 && layover2 < MIN_LAYOVER) return;
+                            // Midnights crossed between leg2's departure and leg3's
+                            // departure: leg2's own overnight crossing, plus a
+                            // possible overnight layover at hub B.
+                            const offsetIntoLeg3 = legCrossesMidnight(l2DepMins, l2ArrMins)
+                                + layoverCrossesMidnight(l2ArrMins, l3DepMins);
+                            const requiredDays3 = rotateDays(leg2ValidDays, offsetIntoLeg3);
+                            if (validLandingDays(l3.days, requiredDays3).length === 0) return;
+                            // Total midnights crossed across the whole itinerary.
+                            const totalDayOffset = offsetIntoLeg2 + offsetIntoLeg3
+                                + legCrossesMidnight(l3DepMins, l3ArrMins);
                             masterConnectionsPool.push({
                                 isNonStop: false, isTwoStop: true,
-                                totalTravelMinutes: calcTotalTime(l1DepMins, l3ArrMins),
+                                totalTravelMinutes: calcTotalTime(l1DepMins, l3ArrMins, totalDayOffset),
                                 layover1, layover2,
                                 leg1: l1, leg2: l2, leg3: l3
                             });
