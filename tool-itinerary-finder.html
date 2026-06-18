@@ -348,18 +348,55 @@
         return results;
     }
 
+    // Metro support: lookup map and airport-code expansion, populated at init
+    let locationLookup = {};  // display_name -> { type: 'airport'|'metro', code }
+    let metroAirports  = {};  // metro_code   -> [airport_code, ...]
+
+    function resolveLocationFilter(val, field) {
+        if (!val) return null;
+        const match = locationLookup[val];
+        if (match && match.type === 'metro') {
+            const codes = metroAirports[match.code];
+            if (!codes || codes.length === 0) return null;
+            return `${field}_code=in.(${codes.join(',')})`;
+        }
+        return `${field}_name=ilike.${encodeURIComponent('%' + val + '%')}`;
+    }
+
     async function initializeDropdowns() {
         try {
-            const [seasonsRes, airportsRes, airlinesRes] = await Promise.all([
+            const [seasonsRes, airportsRes, airlinesRes, metrosRes] = await Promise.all([
                 fetch(`${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`, { headers: HEADERS }),
-                fetch(`${SUPABASE_URL}/airports?select=display_name&order=display_name.asc`, { headers: HEADERS }),
-                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`, { headers: HEADERS })
+                fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name,metro_code&order=display_name.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/metros?select=metro_code,display_name&order=display_name.asc`, { headers: HEADERS })
             ]);
-            if (!seasonsRes.ok || !airportsRes.ok || !airlinesRes.ok) throw new Error();
+            if (!seasonsRes.ok || !airportsRes.ok || !airlinesRes.ok || !metrosRes.ok) throw new Error();
 
             const seasons  = await seasonsRes.json();
             const airports = await airportsRes.json();
             const airlines = await airlinesRes.json();
+            const metros   = await metrosRes.json();
+
+            // Build lookup and metro->airport map
+            locationLookup = {};
+            metroAirports  = {};
+            airports.forEach(a => {
+                locationLookup[a.display_name] = { type: 'airport', code: a.airport_code };
+                if (a.metro_code) {
+                    if (!metroAirports[a.metro_code]) metroAirports[a.metro_code] = [];
+                    metroAirports[a.metro_code].push(a.airport_code);
+                }
+            });
+            metros.forEach(m => {
+                locationLookup[m.display_name] = { type: 'metro', code: m.metro_code };
+            });
+
+            // Merge and sort airports + metros into one datalist
+            const allOptions = [
+                ...airports.map(a => a.display_name),
+                ...metros.map(m => m.display_name)
+            ].sort((a, b) => a.localeCompare(b));
 
             yearInput.innerHTML = `<option value="" disabled selected hidden>Select a Year</option>`;
             seasons.forEach(s => {
@@ -371,9 +408,10 @@
 
             ['originOptions', 'destinationOptions'].forEach(listId => {
                 const dl = document.getElementById(listId);
-                airports.forEach(a => {
-                    const opt   = document.createElement('option');
-                    opt.value   = a.display_name;
+                dl.innerHTML = '';
+                allOptions.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
                     dl.appendChild(opt);
                 });
             });
@@ -386,8 +424,8 @@
             });
 
             [originInput, destinationInput, airlineInput, yearInput].forEach(el => el.disabled = false);
-            originInput.placeholder      = 'City name or airport code...';
-            destinationInput.placeholder = 'City name or airport code...';
+            originInput.placeholder      = 'City, metro area, or airport code...';
+            destinationInput.placeholder = 'City, metro area, or airport code...';
             airlineInput.placeholder     = 'Any airline...';
             searchBtn.textContent        = 'Search';
             searchBtn.disabled           = false;
@@ -534,6 +572,15 @@
             alert('Origin and destination cannot be the same.');
             return;
         }
+        // Prevent same metro group as both origin and destination
+        const originMatch = locationLookup[originVal];
+        const destMatch   = locationLookup[destVal];
+        if (originMatch && destMatch &&
+            originMatch.type === 'metro' && destMatch.type === 'metro' &&
+            originMatch.code === destMatch.code) {
+            alert('Origin and destination cannot be the same metro area.');
+            return;
+        }
 
         if (activeAbortController) activeAbortController.abort();
         activeAbortController = new AbortController();
@@ -552,10 +599,13 @@
                 ? `&days=ilike.${encodeURIComponent('%' + dayVal + '%')}`
                 : '';
 
+            const originFilter = resolveLocationFilter(originVal, 'origin');
+            const destFilter   = resolveLocationFilter(destVal, 'dest');
+
             const [resDirect, resLeg1, resLeg2] = await Promise.all([
-                fetchAll(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+originVal+'%')}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}${dayFilter}`, signal),
-                fetchAll(`${base}?${seasonFilter}&origin_name=ilike.${encodeURIComponent('%'+originVal+'%')}${dayFilter}`, signal),
-                fetchAll(`${base}?${seasonFilter}&dest_name=ilike.${encodeURIComponent('%'+destVal+'%')}`, signal)
+                fetchAll(`${base}?${seasonFilter}&${originFilter}&${destFilter}${dayFilter}`, signal),
+                fetchAll(`${base}?${seasonFilter}&${originFilter}${dayFilter}`, signal),
+                fetchAll(`${base}?${seasonFilter}&${destFilter}`, signal)
             ]);
 
             resDirect.forEach(f => {
