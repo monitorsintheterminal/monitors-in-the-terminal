@@ -251,6 +251,15 @@
         return n1.includes(n2) || n2.includes(n1);
     }
 
+    function parentAirline(conn) {
+        const names = [conn.leg1, conn.leg2, conn.leg3]
+            .filter(Boolean)
+            .map(l => l.airline_name)
+            .filter(Boolean);
+        if (names.length === 0) return '';
+        return names.reduce((shortest, n) => n.length < shortest.length ? n : shortest, names[0]);
+    }
+
     function flightOperatesOnDay(daysStr, targetDay) {
         if (targetDay === 'ANY') return true;
         if (!daysStr) return true;
@@ -407,7 +416,7 @@
             const headerClass = conn.isNonStop ? 'non-stop' : (conn.isTwoStop ? 'two-stop' : '');
             const badgeClass  = conn.isNonStop ? 'non-stop-badge' : (conn.isTwoStop ? 'two-stop-badge' : '');
             const badgeText   = conn.isNonStop
-                ? 'DIRECT'
+                ? 'NON-STOP'
                 : conn.isTwoStop
                     ? `VIA ${esc(conn.leg1.dest_code)} &amp; ${esc(conn.leg2.dest_code)}`
                     : `VIA ${esc(conn.leg1.dest_code)}`;
@@ -428,10 +437,13 @@
                     <div style="font-size:11px; color:#7f684f; font-weight:700; text-align:right;">${esc(leg.equipment) || '—'}</div>
                 </div>`;
 
+            const finalLegForRoute = conn.leg3 || conn.leg2 || conn.leg1;
+            const routeSummary = `${esc(conn.leg1.origin_code)} &rarr; ${esc(finalLegForRoute.dest_code)} &nbsp;|&nbsp; ${esc(parentAirline(conn))}`;
+
             html += `
                 <div class="connection-card">
                     <div class="card-header ${headerClass}">
-                        <span>Option #${idx + 1} &nbsp;|&nbsp; Total time: ${formatMinutes(conn.totalTravelMinutes)}</span>
+                        <span>Option #${idx + 1} &nbsp;|&nbsp; Total time: ${formatMinutes(conn.totalTravelMinutes)} &nbsp;|&nbsp; ${routeSummary}</span>
                         <span class="hub-badge ${badgeClass}">${badgeText}</span>
                     </div>
                     ${legRow(conn.leg1, 'Flight 1')}`;
