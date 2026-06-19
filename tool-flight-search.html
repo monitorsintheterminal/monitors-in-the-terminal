@@ -195,7 +195,7 @@
     function renderTable(flights){
         let warn='';
         if(searchWasTruncated)warn='<div class="cap-warning">&#9888; Display limit reached (2,000 flights). Narrow your search by specifying an Origin, Destination, or Airline.</div>';
-        if(!flights.length){resultsContainer.innerHTML=warn+'<p class="status-msg">No non-stop flights found matching your search criteria. This route may have been served by connecting itineraries — try the <a href="https://terminalmonitors.com/itinerary-finder" style="color:#8fb8e0;">Itinerary Finder</a> to search for 1-stop and 2-stop routings between these cities.</p>';return;}
+        if(!flights.length){resultsContainer.innerHTML=warn+'<p class="status-msg">No non-stop flights found matching your search criteria. This route may have been served by connecting itineraries — try the <a href="https://terminalmonitors.com/itinerary-finder" target="_top" style="color:#8fb8e0;">Itinerary Finder</a> to search for 1-stop and 2-stop routings between these cities.</p>';return;}
         const totalPages=Math.ceil(flights.length/PAGE_SIZE);
         if(currentPage>=totalPages)currentPage=totalPages-1;
         const pageFlights=flights.slice(currentPage*PAGE_SIZE,(currentPage+1)*PAGE_SIZE);
