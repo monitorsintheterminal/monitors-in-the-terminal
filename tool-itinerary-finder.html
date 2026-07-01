@@ -244,18 +244,50 @@
             .replace(/"/g, '&quot;');
     }
 
-    function areAffiliatedAirlines(a1, a2) {
-        if (!a1 || !a2) return false;
-        const n1 = a1.toLowerCase().trim();
-        const n2 = a2.toLowerCase().trim();
-        return n1.includes(n2) || n2.includes(n1);
+    // Affiliation sets: two tiers.
+    // Base (timeless) -- loaded once at init from airline_affiliates, never changes.
+    // Working -- reset from base at each search start, then season partnerships added.
+    // Both store entries as "airline_1|||airline_2" for O(1) lookup.
+    let baseAffiliationSet     = new Set();
+    let baseAffiliationDisplay = {};
+    let affiliationSet         = new Set();
+    let affiliationDisplay     = {};
+
+    function affiliationKey(a1, a2) {
+        return `${a1}|||${a2}`;
     }
 
+    function areAffiliatedAirlines(a1, a2) {
+        if (!a1 || !a2) return false;
+        // Fast substring check: catches natural name overlaps like
+        // "Delta Air Lines" / "Delta Shuttle" without needing explicit rows.
+        const n1 = a1.toLowerCase().trim();
+        const n2 = a2.toLowerCase().trim();
+        if (n1.includes(n2) || n2.includes(n1)) return true;
+        // Explicit affiliate/partnership lookup
+        return affiliationSet.has(affiliationKey(a1, a2));
+    }
+
+    // Returns the display name for a connection's carrier(s).
+    // Walks legs left-to-right, finds the first cross-carrier pair that has an
+    // explicit affiliation/partnership entry, and returns that pair's display_name.
+    // Falls back to the shortest airline name (existing behavior) if no explicit
+    // entry is found -- which handles natural same-name subsidiaries correctly.
     function parentAirline(conn) {
-        const names = [conn.leg1, conn.leg2, conn.leg3]
-            .filter(Boolean)
-            .map(l => l.airline_name)
-            .filter(Boolean);
+        const legs = [conn.leg1, conn.leg2, conn.leg3].filter(Boolean);
+
+        // Check each adjacent pair for an explicit display name
+        for (let i = 0; i < legs.length - 1; i++) {
+            const a1 = legs[i].airline_name;
+            const a2 = legs[i + 1].airline_name;
+            if (!a1 || !a2) continue;
+            const key = affiliationKey(a1, a2);
+            if (affiliationDisplay[key]) return affiliationDisplay[key];
+        }
+
+        // Fallback: shortest name (handles same-carrier itineraries and natural
+        // substring subsidiaries that don't need an explicit display row)
+        const names = legs.map(l => l.airline_name).filter(Boolean);
         if (names.length === 0) return '';
         return names.reduce((shortest, n) => n.length < shortest.length ? n : shortest, names[0]);
     }
@@ -365,18 +397,33 @@
 
     async function initializeDropdowns() {
         try {
-            const [seasonsRes, airportsRes, airlinesRes, metrosRes] = await Promise.all([
+            const [seasonsRes, airportsRes, airlinesRes, metrosRes, affiliatesRes] = await Promise.all([
                 fetch(`${SUPABASE_URL}/seasons?select=season_code,season_label&order=season_order.asc`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name,metro_code&order=display_name.asc`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`, { headers: HEADERS }),
-                fetch(`${SUPABASE_URL}/metros?select=metro_code,display_name&order=display_name.asc`, { headers: HEADERS })
+                fetch(`${SUPABASE_URL}/metros?select=metro_code,display_name&order=display_name.asc`, { headers: HEADERS }),
+                fetch(`${SUPABASE_URL}/airline_affiliates?select=airline_1,airline_2,display_name`, { headers: HEADERS })
             ]);
-            if (!seasonsRes.ok || !airportsRes.ok || !airlinesRes.ok || !metrosRes.ok) throw new Error();
+            if (!seasonsRes.ok || !airportsRes.ok || !airlinesRes.ok || !metrosRes.ok || !affiliatesRes.ok) throw new Error();
 
-            const seasons  = await seasonsRes.json();
-            const airports = await airportsRes.json();
-            const airlines = await airlinesRes.json();
-            const metros   = await metrosRes.json();
+            const seasons   = await seasonsRes.json();
+            const airports  = await airportsRes.json();
+            const airlines  = await airlinesRes.json();
+            const metros    = await metrosRes.json();
+            const affiliates = await affiliatesRes.json();
+
+            // Store timeless affiliates persistently -- these never change between searches.
+            // Partnerships are season-specific and merged in fresh at each search start.
+            baseAffiliationSet     = new Set();
+            baseAffiliationDisplay = {};
+            affiliates.forEach(r => {
+                const key = affiliationKey(r.airline_1, r.airline_2);
+                baseAffiliationSet.add(key);
+                baseAffiliationDisplay[key] = r.display_name;
+            });
+            // Seed the working sets from base (no partnerships yet until first search)
+            affiliationSet     = new Set(baseAffiliationSet);
+            affiliationDisplay = { ...baseAffiliationDisplay };
 
             // Build lookup and metro->airport map
             locationLookup = {};
@@ -601,6 +648,24 @@
 
             const originFilter = resolveLocationFilter(originVal, 'origin');
             const destFilter   = resolveLocationFilter(destVal, 'dest');
+
+            // Reset working affiliation sets from the timeless base, then layer in
+            // season-specific partnerships. This ensures no partnerships from a
+            // previous search bleed into a new search run in a different season.
+            affiliationSet     = new Set(baseAffiliationSet);
+            affiliationDisplay = { ...baseAffiliationDisplay };
+            const partnershipsRes = await fetch(
+                `${SUPABASE_URL}/airline_partnerships?select=airline_1,airline_2,display_name&season=eq.${encodeURIComponent(season)}`,
+                { headers: HEADERS, signal }
+            );
+            if (partnershipsRes.ok) {
+                const partnerships = await partnershipsRes.json();
+                partnerships.forEach(r => {
+                    const key = affiliationKey(r.airline_1, r.airline_2);
+                    affiliationSet.add(key);
+                    affiliationDisplay[key] = r.display_name;
+                });
+            }
 
             const [resDirect, resLeg1, resLeg2] = await Promise.all([
                 fetchAll(`${base}?${seasonFilter}&${originFilter}&${destFilter}${dayFilter}`, signal),
