@@ -357,11 +357,14 @@
 
     function isContinuationLeg(leg1, leg2) {
         if (!leg1 || !leg2) return false;
-        const sameAirline = (leg1.airline_name || '').trim().toLowerCase() ===
-                            (leg2.airline_name || '').trim().toLowerCase();
-        const sameFlight  = (leg1.flight || '').trim().toLowerCase() ===
-                            (leg2.flight || '').trim().toLowerCase();
-        return sameAirline && sameFlight && sameFlight !== '';
+        const sameAirline  = (leg1.airline_name || '').trim().toLowerCase() ===
+                             (leg2.airline_name || '').trim().toLowerCase();
+        const f1 = (leg1.flight || '').trim().toLowerCase();
+        const f2 = (leg2.flight || '').trim().toLowerCase();
+        // Both flights must have a non-empty flight number that matches.
+        // If either is null/empty, we can't confirm they're the same flight,
+        // so treat as a genuine connection, not a continuation.
+        return sameAirline && f1 !== '' && f2 !== '' && f1 === f2;
     }
 
     async function fetchAll(url, signal, pageLimit = 1000) {
@@ -402,7 +405,7 @@
                 fetch(`${SUPABASE_URL}/airports?select=airport_code,display_name,metro_code&order=display_name.asc`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/airlines?select=airline_name&order=airline_name.asc`, { headers: HEADERS }),
                 fetch(`${SUPABASE_URL}/metros?select=metro_code,display_name&order=display_name.asc`, { headers: HEADERS }),
-                fetch(`${SUPABASE_URL}/airline_affiliates?select=airline_1,airline_2,display_name`, { headers: HEADERS })
+                fetch(`${SUPABASE_URL}/airline_affiliates?select=airline_1,airline_2,display_name&limit=1000`, { headers: HEADERS })
             ]);
             if (!seasonsRes.ok || !airportsRes.ok || !airlinesRes.ok || !metrosRes.ok || !affiliatesRes.ok) throw new Error();
 
@@ -694,8 +697,13 @@
                 leg2ByOriginCode[code].push(f);
             });
 
+            // Build a set of all destination airport codes from resLeg2 so the
+            // leg1 guard correctly skips direct-to-destination flights even when
+            // metro expansion means multiple destination codes are in play.
+            const destCodes = new Set(resLeg2.map(f => f.dest_code).filter(Boolean));
+
             resLeg1.forEach(l1 => {
-                if (l1.dest_code === resLeg2[0]?.dest_code) return;
+                if (destCodes.has(l1.dest_code)) return;
                 const l1ArrMins = timeToMinutes(l1.arrive);
                 const l1DepMins = timeToMinutes(l1.depart);
                 if (l1ArrMins === null || l1DepMins === null) return;
